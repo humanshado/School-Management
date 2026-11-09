@@ -32,6 +32,20 @@ export const useMeta = () => {
   return m;
 };
 
+/** What the logged-in person may do, and the class a teacher should land on. */
+export const usePerms = () => {
+  const { meta } = useMeta();
+  const p = meta.perms;
+  const mine = p.classes ?? [];
+  return {
+    ...p,
+    /** may take this class's register / enter its marks */
+    canTeach: (cls: string) => p.teach && (!p.classes || p.classes.includes(cls)),
+    defaultClass: mine[0] ?? meta.classes[0] ?? '',
+    showFees: p.fees && meta.settings.useFees,
+  };
+};
+
 // ------------------------------------------------------------ toasts
 type Toast = { id: number; text: string; kind: 'ok' | 'err' };
 const ToastContext = createContext<(text: string, kind?: 'ok' | 'err') => void>(() => {});

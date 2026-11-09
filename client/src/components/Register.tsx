@@ -10,7 +10,7 @@ interface RegLearner {
 }
 interface RegData {
   className: string; date: string; taken: boolean; takenBy: string; holiday: string; weekend: boolean; schoolDay: boolean;
-  learners: RegLearner[]; prevDay: string; nextDay: string; today: string; teacher: string;
+  learners: RegLearner[]; prevDay: string; nextDay: string; today: string; teacher: string; canEdit: boolean;
 }
 
 const MARKS = [
@@ -42,6 +42,7 @@ export default function Register({ className, date, onDate, compact = false, onS
   if (!data || loading && !data) return <Loading />;
 
   const future = data.date > data.today;
+  const locked = future || !data.canEdit;
   const set = (id: number, patch: Partial<{ mark: string; note: string }>) => setMarks((m) => ({ ...m, [id]: { ...m[id], ...patch } }));
   const go = (d: string) => {
     if (dirty && !confirm('The register has changes that are not saved. Leave without saving?')) return;
@@ -71,6 +72,7 @@ export default function Register({ className, date, onDate, compact = false, onS
           {data.taken ? <span className="pill ok">Taken{data.takenBy ? ` · ${data.takenBy}` : ''}</span> : <span className={`pill ${data.schoolDay ? 'warn' : ''}`}>Not taken yet</span>}
           {data.holiday && <span className="pill">{data.holiday}</span>}
           {data.weekend && <span className="pill">Weekend</span>}
+          {!data.canEdit && <span className="pill info" title={`Only ${data.teacher || 'the class teacher'} or an admin can change this register`}>View only</span>}
           <span className="muted small">{counts.P + counts.L} present · {counts.A} absent · {counts.L} late · {counts.E} excused · {data.learners.length} enrolled</span>
         </div>
       </div>
@@ -96,12 +98,12 @@ export default function Register({ className, date, onDate, compact = false, onS
                     <td>
                       <div className="mark-toggle" role="radiogroup" aria-label={`${l.name} attendance`}>
                         {MARKS.map((x) => (
-                          <button key={x.k} role="radio" aria-checked={m.mark === x.k} title={x.label} disabled={future}
+                          <button key={x.k} role="radio" aria-checked={m.mark === x.k} title={x.label} disabled={locked}
                             className={m.mark === x.k ? `on ${markClass(x.k)}` : ''} onClick={() => set(l.id, { mark: x.k })}>{x.k}</button>
                         ))}
                       </div>
                     </td>
-                    {!compact && <td><input className="note-input" value={m.note} placeholder={m.mark === 'P' ? '' : 'Reason…'} onChange={(e) => set(l.id, { note: e.target.value })} disabled={future} /></td>}
+                    {!compact && <td><input className="note-input" value={m.note} placeholder={m.mark === 'P' ? '' : 'Reason…'} onChange={(e) => set(l.id, { note: e.target.value })} disabled={locked} /></td>}
                     <td className="hide-sm">
                       <div className="last5">{l.last5.map((d) => <span key={d.date} className={`dot ${markClass(d.mark)}`} title={`${fmtShort(d.date)}: ${d.mark}`}>{d.mark}</span>)}</div>
                     </td>
@@ -114,11 +116,11 @@ export default function Register({ className, date, onDate, compact = false, onS
         </div>
       )}
 
-      <div className="reg-actions">
+      {data.canEdit && <div className="reg-actions">
         <button className="btn ghost" disabled={future || busy} onClick={() => setMarks((mk) => Object.fromEntries(Object.entries(mk).map(([k, v]) => [k, { ...v, mark: 'P' }])))}>All present</button>
         <button className="btn" disabled={!absentIds.length} onClick={() => setMsg(absentIds)}>Message guardians ({absentIds.length})</button>
         <button className="btn primary" disabled={future || busy || !data.learners.length} onClick={save}>{busy ? 'Saving…' : data.taken ? (dirty ? 'Save changes' : 'Save register') : 'Save register'}</button>
-      </div>
+      </div>}
       {future && <p className="muted small">A register cannot be taken for a future date.</p>}
       <p className="muted small legend">P present · A absent · L late · E excused{meta.settings.lateCountsPresent ? ' · late counts as present' : ''}</p>
       {msg && <MessagesModal kind="absent" learnerIds={msg} date={data.date} title={`Absence messages · ${className}`} onClose={() => setMsg(null)} />}

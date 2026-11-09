@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { api } from '../api';
 import { RowsEditor, SaveBar, StringList, useSettingsDraft } from '../components/Editors';
 import { Card, Field, PageHead, Select, useAction, useMeta } from '../components/ui';
+import UsersCard from '../components/Users';
 
 export default function Admin() {
   const { meta, reload } = useMeta();
@@ -23,6 +24,7 @@ export default function Admin() {
     <>
       <PageHead title="Admin" sub="Settings & lists · changes apply across the whole app" />
       <div className="grid g-admin">
+        <UsersCard />
         <Card title="School">
           <div className="form-grid">
             <Field label="School name" wide><input value={s.schoolName} onChange={(e) => d.set('schoolName', e.target.value)} /></Field>

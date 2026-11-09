@@ -1,21 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, qs } from '../api';
-import { Card, Empty, ErrorBox, Field, Loading, Modal, PageHead, Select, useAction, useApi, useMeta } from '../components/ui';
+import { Card, Empty, ErrorBox, Field, Loading, Modal, PageHead, Select, useAction, useApi, useMeta, usePerms } from '../components/ui';
 import { bandOf, fmtShort, num1, pct, signed } from '../format';
 
 interface GB {
-  className: string; term: string; subjects: string[]; classAvg: Record<string, number | null>; assessmentCounts: Record<string, number>;
+  className: string; term: string; subjects: string[]; classAvg: Record<string, number | null>; assessmentCounts: Record<string, number>; canEdit: boolean;
   learners: { id: number; name: string; marks: Record<string, number>; avg: number | null; chg: number | null; pos: number | null; att: number | null; flags: number }[];
 }
 interface Assessment { id: number; term: string; className: string; subject: string; name: string; weight: number; outOf: number; date: string | null }
-interface AS { assessments: Assessment[]; learners: { id: number; name: string; marks: Record<number, number>; termMark: number | null }[] }
+interface AS { canEdit: boolean; assessments: Assessment[]; learners: { id: number; name: string; marks: Record<number, number>; termMark: number | null }[] }
 
 export default function Gradebook() {
   const { meta } = useMeta();
   const s = meta.settings;
+  const { defaultClass } = usePerms();
   const [sp, setSp] = useSearchParams();
-  const cls = sp.get('class') && meta.classes.includes(sp.get('class')!) ? sp.get('class')! : meta.classes[0] ?? '';
+  const cls = sp.get('class') && meta.classes.includes(sp.get('class')!) ? sp.get('class')! : defaultClass;
   const term = sp.get('term') ?? meta.term;
   const subject = sp.get('subject') ?? '';
   const set = (patch: Record<string, string>) => setSp(Object.fromEntries(Object.entries({ class: cls, term, subject, ...patch }).filter(([, v]) => v)), { replace: true });
@@ -46,9 +47,9 @@ function TermMarks({ cls, term, onSubject }: { cls: string; term: string; onSubj
       {noAssessments && (
         <div className="callout">
           No assessments for {cls} in {term} yet.
-          <button className="btn primary sm" disabled={busy} onClick={() => run(async () => { const r = await api.post('/assessments/defaults', { className: cls, term }); await reload(); reloadMeta(); return r; }, 'Default assessments added for every subject')}>
+          {data.canEdit && <button className="btn primary sm" disabled={busy} onClick={() => run(async () => { const r = await api.post('/assessments/defaults', { className: cls, term }); await reload(); reloadMeta(); return r; }, 'Default assessments added for every subject')}>
             Add the default assessments ({s.assessmentTypes.map((a) => `${a.name} ${a.weight}%`).join(', ')})
-          </button>
+          </button>}
         </div>
       )}
       <div className="table-wrap">
@@ -120,7 +121,7 @@ function SubjectMarks({ cls, term, subject }: { cls: string; term: string; subje
   };
 
   return (
-    <Card title={`${subject} · ${cls} · ${term}`} pad={false} actions={<>
+    <Card title={`${subject} · ${cls} · ${term}`} pad={false} actions={!data.canEdit ? <span className="pill info">View only</span> : <>
       <button className="btn" onClick={() => setEditA({ className: cls, term, subject, name: '', weight: 0, outOf: 100, date: meta.today })}>+ Assessment</button>
       {data.assessments.length === 0 && <button className="btn" onClick={() => run(async () => { await api.post('/assessments/defaults', { className: cls, term, subject }); await reload(); }, 'Default assessments added')}>Add defaults</button>}
       <button className="btn primary" disabled={!dirty || busy || anyInvalid} onClick={save}>{busy ? 'Saving…' : dirty ? `Save marks (${Object.keys(edits).length})` : 'Saved'}</button>
@@ -134,7 +135,7 @@ function SubjectMarks({ cls, term, subject }: { cls: string; term: string; subje
                 <th>Learner</th>
                 {data.assessments.map((a) => (
                   <th key={a.id} className="num">
-                    <button className="link" onClick={() => setEditA(a)} title="Edit assessment">{a.name}</button>
+                    {data.canEdit ? <button className="link" onClick={() => setEditA(a)} title="Edit assessment">{a.name}</button> : <b>{a.name}</b>}
                     <small>{a.weight}% · out of {a.outOf}{a.date ? ` · ${fmtShort(a.date)}` : ''}</small>
                   </th>
                 ))}
@@ -149,7 +150,7 @@ function SubjectMarks({ cls, term, subject }: { cls: string; term: string; subje
                     const v = val(a.id, l.id, l.marks[a.id]);
                     return (
                       <td key={a.id} className="num">
-                        <input className={`mark-input ${invalid(a.id, v) ? 'invalid' : ''} ${edits[key(a.id, l.id)] !== undefined ? 'changed' : ''}`} inputMode="decimal" value={v}
+                        <input className={`mark-input ${invalid(a.id, v) ? 'invalid' : ''} ${edits[key(a.id, l.id)] !== undefined ? 'changed' : ''}`} inputMode="decimal" value={v} readOnly={!data.canEdit}
                           data-cell={`${col}:${row}`} aria-label={`${l.name} ${a.name}`} onKeyDown={(e) => onKey(e, col, row)}
                           onChange={(e) => setEdits((x) => ({ ...x, [key(a.id, l.id)]: e.target.value }))} />
                       </td>

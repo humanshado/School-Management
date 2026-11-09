@@ -41,7 +41,12 @@ export interface Kpis {
   receiptsToday: number; receiptsTodayAmount: number; week: number; weeks: number; schoolDays: number; ready: number;
 }
 
+export type Role = 'admin' | 'teacher' | 'bursar';
+export interface User { id: number; username: string; name: string; role: Role; teacherName: string | null; active: number }
+export interface Perms { role: Role; admin: boolean; teach: boolean; fees: boolean; classes: string[] | null }
+
 export interface Meta {
+  user: User; perms: Perms;
   settings: Settings; today: string; term: string; termStart: string | null; termEnd: string | null; feesDue: string | null;
   schoolDay: boolean; holiday: string; kpis: Kpis; classes: string[]; teachers: string[];
 }

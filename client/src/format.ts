@@ -24,3 +24,5 @@ export const bandOf = (s: Settings | undefined, mark: number | null | undefined)
   return s.gradeBands.find((b) => mark >= b.from - 1e-6)?.band ?? s.gradeBands[s.gradeBands.length - 1]?.band ?? '';
 };
 export const plural = (n: number, word: string, many = word + 's') => `${n} ${n === 1 ? word : many}`;
+
+export const ROLE_LABEL = { admin: 'Admin', teacher: 'Teacher', bursar: 'Bursar' } as const;

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api, qs } from '../api';
-import { Card, ErrorBox, Loading, MessagesModal, PageHead, Select, useApi, useMeta, useToast } from '../components/ui';
+import { Card, ErrorBox, Loading, MessagesModal, PageHead, Select, useApi, useMeta, usePerms, useToast } from '../components/ui';
 import { fmtDate, num1, pct, signed } from '../format';
 
 interface RC {
@@ -10,14 +10,15 @@ interface RC {
   subjects: { subject: string; mark: number | null; band: string; meaning: string; classAvg: number | null; prev: number | null }[];
   avg: number | null; band: string; chg: number | null; pos: number | null; classSize: number;
   attendance: { present: number; taken: number; absent: number; late: number; att: number | null };
-  teacherComment: string; principalComment: string; nextTermStarts: string | null;
+  teacherComment: string; principalComment: string; nextTermStarts: string | null; canEditTeacher: boolean; canEditPrincipal: boolean;
 }
 interface RCData { school: { name: string; address: string; contact: string; principal: string }; gradeBands: { band: string; from: number; meaning: string }[]; cards: RC[] }
 
 export default function ReportCards() {
   const { meta } = useMeta();
+  const { defaultClass } = usePerms();
   const [sp, setSp] = useSearchParams();
-  const cls = sp.get('class') && meta.classes.includes(sp.get('class')!) ? sp.get('class')! : meta.classes[0] ?? '';
+  const cls = sp.get('class') && meta.classes.includes(sp.get('class')!) ? sp.get('class')! : defaultClass;
   const term = sp.get('term') ?? meta.term;
   const learner = sp.get('learner') ?? '';
   const { data, error, reload } = useApi<RCData>(`/report-cards${qs({ class: cls, term })}`);
@@ -111,10 +112,10 @@ function ReportCard({ rc, school, bands, readOnly, onSaved }: { rc: RC; school: 
       </div>
       <div className="rc-comments">
         <label><span>Class teacher's comment</span>
-          {readOnly ? <p>{tc || ' '}</p> : <textarea rows={3} value={tc} onChange={(e) => setTc(e.target.value)} onBlur={() => tc !== saved.current.teacherComment && save({ teacherComment: tc })} placeholder="Type a comment — it saves when you click away" />}
+          {readOnly || !rc.canEditTeacher ? <p>{tc || ' '}</p> : <textarea rows={3} value={tc} onChange={(e) => setTc(e.target.value)} onBlur={() => tc !== saved.current.teacherComment && save({ teacherComment: tc })} placeholder="Type a comment — it saves when you click away" />}
         </label>
         <label><span>Principal's comment · {school.principal}</span>
-          {readOnly ? <p>{pc || ' '}</p> : <textarea rows={2} value={pc} onChange={(e) => setPc(e.target.value)} onBlur={() => pc !== saved.current.principalComment && save({ principalComment: pc })} />}
+          {readOnly || !rc.canEditPrincipal ? <p>{pc || ' '}</p> : <textarea rows={2} value={pc} onChange={(e) => setPc(e.target.value)} onBlur={() => pc !== saved.current.principalComment && save({ principalComment: pc })} />}
         </label>
       </div>
       <footer className="rc-foot">

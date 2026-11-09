@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { PaymentModal, PlanModal, ReceiptModal } from '../components/Payments';
-import { BarChart, Card, Empty, ErrorBox, Field, Flags, Loading, MessagesModal, PageHead, Select, useAction, useApi, useMeta } from '../components/ui';
+import { BarChart, Card, Empty, ErrorBox, Field, Flags, Loading, MessagesModal, PageHead, Select, useAction, useApi, useMeta, usePerms } from '../components/ui';
 import { fmtDate, fmtShort, markClass, money, num1, pct, signed } from '../format';
 import type { Student, StudentStats } from '../types';
 
@@ -15,6 +15,7 @@ export default function Students() {
   const { id } = useParams();
   const nav = useNavigate();
   const { meta } = useMeta();
+  const perms = usePerms();
   const { data, error, reload } = useApi<Student[]>('/students');
   const [q, setQ] = useState('');
   const [cls, setCls] = useState('');
@@ -35,7 +36,7 @@ export default function Students() {
   return (
     <>
       <PageHead title="Students" sub={`${data.filter((s) => (s.status || 'Active') === 'Active').length} active learners`}>
-        <button className="btn primary" onClick={() => { setAdding(true); nav('/students'); }}>+ Add learner</button>
+        {perms.admin && <button className="btn primary" onClick={() => { setAdding(true); nav('/students'); }}>+ Add learner</button>}
       </PageHead>
       <div className="split">
         <Card className="list-card" pad={false}>
@@ -46,7 +47,7 @@ export default function Students() {
           </div>
           <div className="table-wrap list-scroll">
             <table className="table compact hover">
-              <thead><tr><th>Name</th><th>Class</th><th className="num">Att.</th><th className="num">Avg</th>{meta.settings.useFees && <th className="num">Balance</th>}<th>Flags</th></tr></thead>
+              <thead><tr><th>Name</th><th>Class</th><th className="num">Att.</th><th className="num">Avg</th>{perms.showFees && <th className="num">Balance</th>}<th>Flags</th></tr></thead>
               <tbody>
                 {list.map((s) => (
                   <tr key={s.id} className={s.id === selected ? 'sel' : ''} onClick={() => { setAdding(false); nav(`/students/${s.id}`); }}>
@@ -54,7 +55,7 @@ export default function Students() {
                     <td>{s.className}</td>
                     <td className="num">{pct(s.stats?.att)}</td>
                     <td className="num">{s.stats?.avg == null ? '–' : Math.round(s.stats.avg)}</td>
-                    {meta.settings.useFees && <td className={`num ${s.stats?.overdue ? 'bad-text' : ''}`}>{s.stats?.balance ? money(meta.settings, s.stats.balance) : '–'}</td>}
+                    {perms.showFees && <td className={`num ${s.stats?.overdue ? 'bad-text' : ''}`}>{s.stats?.balance ? money(meta.settings, s.stats.balance) : '–'}</td>}
                     <td><Flags n={s.stats?.flags ?? 0} max={meta.settings.useFees ? 3 : 2} reasons={s.stats?.reasons} /></td>
                   </tr>
                 ))}
@@ -65,9 +66,9 @@ export default function Students() {
           <div className="list-foot muted small">{list.length} shown</div>
         </Card>
         <div className="detail">
-          {adding ? <StudentForm initial={{ ...BLANK, className: cls || meta.classes[0] || '', enrolmentDate: meta.today }} onDone={(s) => { setAdding(false); reload(); if (s) nav(`/students/${s.id}`); }} />
+          {adding && perms.admin ? <StudentForm initial={{ ...BLANK, className: cls || meta.classes[0] || '', enrolmentDate: meta.today }} onDone={(s) => { setAdding(false); reload(); if (s) nav(`/students/${s.id}`); }} />
             : selected ? <Profile key={selected} id={selected} onChanged={reload} onDeleted={() => { reload(); nav('/students'); }} />
-            : <Card><Empty>Pick a learner on the left, or add a new one.</Empty></Card>}
+            : <Card><Empty>Pick a learner on the left{perms.admin ? ', or add a new one' : ''}.</Empty></Card>}
         </div>
       </div>
     </>
@@ -136,15 +137,17 @@ interface ProfileData {
 function Profile({ id, onChanged, onDeleted }: { id: number; onChanged: () => void; onDeleted: () => void }) {
   const { meta, reload: reloadMeta } = useMeta();
   const s = meta.settings;
+  const perms = usePerms();
   const { data, error, reload } = useApi<ProfileData>(`/students/${id}`);
-  const [tab, setTab] = useState<'glance' | 'details' | 'attendance' | 'fees'>(() => (localStorage.getItem('student.tab') as any) || 'glance');
+  const [tabPick, setTab] = useState<'glance' | 'details' | 'attendance' | 'fees'>(() => { try { return (localStorage.getItem('student.tab') as any) || 'glance'; } catch { return 'glance'; } });
   const [editing, setEditing] = useState(false);
   const [pay, setPay] = useState<any>(null);
   const [plan, setPlan] = useState<any>(null);
   const [receipt, setReceipt] = useState<number | null>(null);
   const [mail, setMail] = useState(false);
   const { run } = useAction();
-  useEffect(() => { try { localStorage.setItem('student.tab', tab); } catch { /* ignore */ } }, [tab]);
+  const tab = tabPick === 'fees' && !perms.showFees ? 'glance' : tabPick;
+  useEffect(() => { try { localStorage.setItem('student.tab', tabPick); } catch { /* ignore */ } }, [tabPick]);
 
   if (error) return <ErrorBox error={error} retry={reload} />;
   if (!data) return <Loading />;
@@ -169,21 +172,21 @@ function Profile({ id, onChanged, onDeleted }: { id: number; onChanged: () => vo
             {st.medicalNote && <div className="pill warn" style={{ marginTop: 6 }}>Medical: {st.medicalNote}</div>}
           </div>
           <div className="profile-actions">
-            <button className="btn" onClick={() => setEditing(true)}>Edit</button>
+            {perms.admin && <button className="btn" onClick={() => setEditing(true)}>Edit</button>}
             {x.active && <button className="btn" onClick={() => setMail(true)}>E-mail guardian</button>}
-            <Link className="btn" to={`/report-cards?learner=${st.id}&class=${encodeURIComponent(st.className)}`}>Report card</Link>
+            {perms.teach && <Link className="btn" to={`/report-cards?learner=${st.id}&class=${encodeURIComponent(st.className)}`}>Report card</Link>}
           </div>
         </div>
         <div className="mini-kpis">
           <div><span>Attendance</span><b className={x.reasons.includes('attendance') ? 'bad-text' : ''}>{pct(x.att)}</b><small>{x.absent} absent · {x.late} late</small></div>
           <div><span>Term average</span><b>{num1(x.avg)}</b><small className={x.reasons.includes('grades') ? 'bad-text' : ''}>{signed(x.chg)} vs last term</small></div>
-          {s.useFees && <div><span>Balance</span><b className={x.overdue ? 'bad-text' : ''}>{money(s, x.balance)}</b><small>{x.feeStatus || '–'}</small></div>}
+          {perms.showFees && <div><span>Balance</span><b className={x.overdue ? 'bad-text' : ''}>{money(s, x.balance)}</b><small>{x.feeStatus || '–'}</small></div>}
           <div><span>Flags</span><b><Flags n={x.flags} max={s.useFees ? 3 : 2} /></b><small>{x.reasons.join(', ') || 'none'}</small></div>
         </div>
       </Card>
 
       <div className="tabs" role="tablist">
-        {([['glance', 'Term at a glance'], ['details', 'Details'], ['attendance', 'Attendance'], ...(s.useFees ? [['fees', 'Fees']] : [])] as [typeof tab, string][]).map(([k, l]) => (
+        {([['glance', 'Term at a glance'], ['details', 'Details'], ['attendance', 'Attendance'], ...(perms.showFees ? [['fees', 'Fees']] : [])] as [typeof tab, string][]).map(([k, l]) => (
           <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>
         ))}
       </div>
@@ -214,7 +217,7 @@ function Profile({ id, onChanged, onDeleted }: { id: number; onChanged: () => vo
       )}
 
       {tab === 'details' && (
-        <Card title="Details" actions={<><button className="btn" onClick={() => setEditing(true)}>Edit</button><button className="btn danger" onClick={del}>Delete</button></>}>
+        <Card title="Details" actions={perms.admin ? <><button className="btn" onClick={() => setEditing(true)}>Edit</button><button className="btn danger" onClick={del}>Delete</button></> : undefined}>
           <dl className="dl">
             <dt>Date of birth</dt><dd>{fmtDate(st.dob) || '–'}</dd>
             <dt>Gender</dt><dd>{st.gender || '–'}</dd>
@@ -241,7 +244,7 @@ function Profile({ id, onChanged, onDeleted }: { id: number; onChanged: () => vo
         </Card>
       )}
 
-      {tab === 'fees' && (
+      {tab === 'fees' && perms.showFees && (
         <div className="grid g2">
           <Card title="Payments" pad={false} actions={<button className="btn sm primary" onClick={() => setPay({ studentId: st.id, paidBy: st.guardianName ? `Guardian · ${st.guardianName.split(' ')[0]}` : '' })}>Record payment</button>}>
             <div className="fee-sum muted small pad-x">{meta.term}: billed {money(s, x.billed)} · paid {money(s, x.paid)} · balance <b>{money(s, x.balance)}</b></div>

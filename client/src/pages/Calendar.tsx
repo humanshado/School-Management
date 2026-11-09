@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { qs } from '../api';
 import { RowsEditor, SaveBar, useSettingsDraft } from '../components/Editors';
-import { Card, ErrorBox, Loading, PageHead, useApi, useMeta } from '../components/ui';
+import { Card, ErrorBox, Loading, PageHead, useApi, useMeta, usePerms } from '../components/ui';
 import { fmtShort } from '../format';
 
 interface Day { date: string; weekday: number; term: string; holiday: string; events: string[]; registers: number; attendance: number | null; schoolDay: boolean }
@@ -14,6 +14,7 @@ export default function Calendar() {
   const [month, setMonth] = useState(meta.today.slice(0, 7));
   const { data, error, reload } = useApi<{ month: string; today: string; nClasses: number; days: Day[] }>(`/calendar${qs({ month })}`);
   const d = useSettingsDraft();
+  const { admin, teach } = usePerms();
   const title = new Date(month + '-01T00:00:00Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
   const lead = data ? data.days[0].weekday - 1 : 0;
   const inMonth = data?.days.filter((x) => x.holiday || x.events.length) ?? [];
@@ -45,7 +46,7 @@ export default function Calendar() {
                       )}
                     </>
                   );
-                  return x.schoolDay && x.date <= data.today
+                  return teach && x.schoolDay && x.date <= data.today
                     ? <Link key={x.date} to={`/attendance?date=${x.date}`} className={cls} title="Open the registers for this day">{body}</Link>
                     : <div key={x.date} className={cls}>{body}</div>;
                 })}
@@ -57,24 +58,24 @@ export default function Calendar() {
           )}
         </Card>
 
-        <Card title="Terms" actions={<span className="muted small">Current: <b>{meta.term}</b> (change in Admin)</span>}>
-          <RowsEditor rows={d.draft.terms} onChange={(v) => d.set('terms', v)} addLabel="Add term" blank={{ name: '', start: '', end: '', feesDue: '' }}
+        <Card title="Terms" actions={<span className="muted small">Current: <b>{meta.term}</b> {admin ? '(change in Admin)' : ''}</span>}>
+          <RowsEditor readOnly={!admin} rows={d.draft.terms} onChange={(v) => d.set('terms', v)} addLabel="Add term" blank={{ name: '', start: '', end: '', feesDue: '' }}
             cols={[{ key: 'name', label: 'Term', width: '22%' }, { key: 'start', label: 'Starts', type: 'date' }, { key: 'end', label: 'Ends', type: 'date' }, { key: 'feesDue', label: 'Fees due', type: 'date' }]} />
           <p className="muted small">The term before the current one is used for "change vs last term", so keep them in order.</p>
         </Card>
 
         <Card title="Holidays · not school days">
-          <RowsEditor rows={d.draft.holidays} onChange={(v) => d.set('holidays', v)} addLabel="Add holiday" blank={{ name: '', type: 'Public holiday', date: '' }}
+          <RowsEditor readOnly={!admin} rows={d.draft.holidays} onChange={(v) => d.set('holidays', v)} addLabel="Add holiday" blank={{ name: '', type: 'Public holiday', date: '' }}
             cols={[{ key: 'name', label: 'Holiday' }, { key: 'type', label: 'Type', width: '30%' }, { key: 'date', label: 'Date', type: 'date', width: '30%' }]} />
         </Card>
 
         <Card title="Key dates · shown on Today" className="span-2">
-          <RowsEditor rows={d.draft.keyDates} onChange={(v) => d.set('keyDates', v)} addLabel="Add key date" blank={{ label: '', date: '' }}
+          <RowsEditor readOnly={!admin} rows={d.draft.keyDates} onChange={(v) => d.set('keyDates', v)} addLabel="Add key date" blank={{ label: '', date: '' }}
             cols={[{ key: 'label', label: 'Key date' }, { key: 'date', label: 'Date', type: 'date', width: '30%' }]} />
           <p className="muted small">{'{overdue}'} in a key date fills in the number of learners with fees overdue.</p>
         </Card>
       </div>
-      <SaveBar {...d} />
+      {admin && <SaveBar {...d} />}
     </>
   );
 }

@@ -50,8 +50,8 @@ export function StringList({ value, onChange, placeholder = 'Add…' }: { value:
 
 export interface Col<T> { key: keyof T & string; label: string; type?: 'text' | 'number' | 'date'; width?: string; placeholder?: string }
 
-export function RowsEditor<T extends Record<string, any>>({ rows, cols, onChange, blank, addLabel = 'Add row' }: {
-  rows: T[]; cols: Col<T>[]; onChange: (r: T[]) => void; blank: T; addLabel?: string;
+export function RowsEditor<T extends Record<string, any>>({ rows, cols, onChange, blank, addLabel = 'Add row', readOnly }: {
+  rows: T[]; cols: Col<T>[]; onChange: (r: T[]) => void; blank: T; addLabel?: string; readOnly?: boolean;
 }) {
   return (
     <div className="table-wrap">
@@ -62,16 +62,16 @@ export function RowsEditor<T extends Record<string, any>>({ rows, cols, onChange
             <tr key={i}>
               {cols.map((c) => (
                 <td key={c.key}>
-                  <input type={c.type ?? 'text'} value={r[c.key] ?? ''} placeholder={c.placeholder} aria-label={c.label}
+                  <input type={c.type ?? 'text'} value={r[c.key] ?? ''} placeholder={c.placeholder} aria-label={c.label} disabled={readOnly}
                     onChange={(e) => onChange(rows.map((x, j) => (j === i ? { ...x, [c.key]: c.type === 'number' ? (e.target.value === '' ? 0 : +e.target.value) : e.target.value } : x)))} />
                 </td>
               ))}
-              <td><button className="icon-btn" onClick={() => onChange(rows.filter((_, j) => j !== i))} aria-label="Remove row">×</button></td>
+              <td>{!readOnly && <button className="icon-btn" onClick={() => onChange(rows.filter((_, j) => j !== i))} aria-label="Remove row">×</button>}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      <button className="btn sm" onClick={() => onChange([...rows, { ...blank }])}>+ {addLabel}</button>
+      {!readOnly && <button className="btn sm" onClick={() => onChange([...rows, { ...blank }])}>+ {addLabel}</button>}
     </div>
   );
 }

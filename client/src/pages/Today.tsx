@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import Register from '../components/Register';
-import { BarChart, Card, Empty, ErrorBox, Flags, Kpi, Loading, MessagesModal, PageHead, Select, useApi, useMeta } from '../components/ui';
+import { BarChart, Card, Empty, ErrorBox, Flags, Kpi, Loading, MessagesModal, PageHead, Select, useApi, useMeta, usePerms } from '../components/ui';
 import { daysBetween, fmtLong, fmtShort, money, pct, signed } from '../format';
 import type { ClassStats, Kpis, StudentStats } from '../types';
 
@@ -16,6 +16,7 @@ interface TodayData {
 export default function Today() {
   const { meta } = useMeta();
   const s = meta.settings;
+  const perms = usePerms();
   const { data, error, reload } = useApi<TodayData>('/today');
   const [cls, setCls] = useState(() => localStorage.getItem('today.class') ?? '');
   const [mail, setMail] = useState<Learner | null>(null);
@@ -24,7 +25,9 @@ export default function Today() {
   if (error) return <ErrorBox error={error} retry={reload} />;
   if (!data) return <Loading />;
   const k = data.kpis;
-  const regClass = cls && meta.classes.includes(cls) ? cls : data.classes.find((c) => c.today === 'No')?.name ?? meta.classes[0] ?? '';
+  const regClass = cls && meta.classes.includes(cls) ? cls
+    : perms.classes ? perms.defaultClass
+    : data.classes.find((c) => c.today === 'No')?.name ?? meta.classes[0] ?? '';
   const pick = (c: string) => { setCls(c); try { localStorage.setItem('today.class', c); } catch { /* private mode */ } };
   const list = showWatch ? data.watch : data.risk;
 
@@ -36,21 +39,23 @@ export default function Today() {
         <Kpi label="Present today" value={k.enrolledToday ? pct(k.presentToday / k.enrolledToday, 1) : '–'} sub={k.enrolledToday ? `${k.presentToday} of ${k.enrolledToday} in registers taken` : 'no registers yet'} />
         <Kpi label="Registers" value={`${k.regTaken} / ${k.regTaken + k.regNot}`} sub={k.regNot ? `${k.regNot} not taken` : 'all taken'} tone={k.regNot ? 'warn' : 'good'} />
         <Kpi label="At risk" value={k.risk} sub={`${k.watch} on the watch list`} tone={k.risk ? 'bad' : undefined} />
-        {s.useFees && <Kpi label="Fees overdue" value={k.overdueCount} sub={money(s, k.overdueAmount)} tone={k.overdueCount ? 'warn' : undefined} />}
-        {s.useFees && <Kpi label="Receipts today" value={k.receiptsToday} sub={money(s, k.receiptsTodayAmount)} />}
+        {perms.showFees && <Kpi label="Fees overdue" value={k.overdueCount} sub={money(s, k.overdueAmount)} tone={k.overdueCount ? 'warn' : undefined} />}
+        {perms.showFees && <Kpi label="Receipts today" value={k.receiptsToday} sub={money(s, k.receiptsTodayAmount)} />}
       </div>
 
       <div className="grid g-today">
-        <Card title="Morning register" className="span-2" actions={<Select value={regClass} onChange={pick} options={meta.classes} aria-label="Class" />}>
-          <Register className={regClass} date={data.today} compact onSaved={reload} />
-        </Card>
+        {perms.teach && (
+          <Card title="Morning register" className="span-2" actions={<Select value={regClass} onChange={pick} options={meta.classes} aria-label="Class" />}>
+            <Register className={regClass} date={data.today} compact onSaved={reload} />
+          </Card>
+        )}
 
         <Card title="All classes today" pad={false}>
           <table className="table compact">
             <thead><tr><th>Class</th><th>Teacher</th><th>Register</th><th className="num">Present</th></tr></thead>
             <tbody>
               {data.classes.map((c) => (
-                <tr key={c.id} className={c.name === regClass ? 'sel' : ''} onClick={() => pick(c.name)} style={{ cursor: 'pointer' }}>
+                <tr key={c.id} className={perms.teach && c.name === regClass ? 'sel' : ''} onClick={() => perms.teach && pick(c.name)} style={{ cursor: perms.teach ? 'pointer' : undefined }}>
                   <td><b>{c.name}</b></td>
                   <td className="muted">{c.teacher}</td>
                   <td>{c.today === 'Yes' ? <span className="pill ok">Taken</span> : c.today === 'No' ? <span className="pill warn">Not taken</span> : <span className="muted">–</span>}</td>
@@ -70,7 +75,7 @@ export default function Today() {
           {list.length === 0 ? <Empty>Nobody here. 🎉</Empty> : (
             <div className="table-wrap">
               <table className="table">
-                <thead><tr><th>Learner</th><th>Class</th><th className="num">Attend.</th><th className="num">Average</th><th className="num">Change</th>{s.useFees && <th>Fees</th>}<th>Flags</th><th /></tr></thead>
+                <thead><tr><th>Learner</th><th>Class</th><th className="num">Attend.</th><th className="num">Average</th><th className="num">Change</th>{perms.showFees && <th>Fees</th>}<th>Flags</th><th /></tr></thead>
                 <tbody>
                   {list.map((x) => (
                     <tr key={x.id}>
@@ -79,7 +84,7 @@ export default function Today() {
                       <td className={`num ${x.reasons.includes('attendance') ? 'bad-text' : ''}`}>{pct(x.att)}</td>
                       <td className="num">{x.avg === null ? '–' : Math.round(x.avg)}</td>
                       <td className={`num ${x.reasons.includes('grades') ? 'bad-text' : ''}`}>{signed(x.chg)}</td>
-                      {s.useFees && <td className={x.reasons.includes('fees') ? 'bad-text' : 'muted'}>{x.feeStatus || '–'}</td>}
+                      {perms.showFees && <td className={x.reasons.includes('fees') ? 'bad-text' : 'muted'}>{x.feeStatus || '–'}</td>}
                       <td><Flags n={x.flags} max={data.flagMax} reasons={x.reasons} /></td>
                       <td className="right"><button className="btn sm" onClick={() => setMail(x)}>E-mail</button></td>
                     </tr>
@@ -112,7 +117,7 @@ export default function Today() {
           <BarChart data={data.weeks.map((w) => ({ label: w.label, value: w.pct }))} threshold={s.riskAttendance * 100} />
         </Card>
 
-        {s.useFees && (
+        {perms.showFees && (
           <Card title="Receipts today" pad={false} actions={<Link className="btn sm" to="/fees">Record payment</Link>}>
             {data.receipts.length === 0 ? <Empty>No payments recorded today.</Empty> : (
               <table className="table compact">

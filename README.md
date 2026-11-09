@@ -87,9 +87,29 @@ npm run seed
 
 `npm run seed` **replaces** the database with that file. Admin also has **Download backup** and **Restore backup** (the same JSON format) and **Clear all school data**, which keeps settings, lists, calendar and templates.
 
-## Before putting it on a network
+## Logins and roles
 
-This is a single-school app with **no logins yet**. Anyone who can reach the server can read and change everything, including guardian contact details. Run it on one computer or a trusted local network, or put it behind a login (for example a reverse proxy with authentication) before exposing it. User accounts and roles (teacher / bursar / admin) are the natural next step.
+The first time the app opens, it asks you to create the **admin** account. The admin then adds staff under **Admin › Users & roles**.
+
+| | Admin | Teacher | Bursar |
+|---|---|---|---|
+| Today, Students, Classes, Teachers, Calendar, Dashboard | ✓ | view (no fee figures) | view |
+| Registers, Gradebook, the teacher's report-card comment | ✓ | own class* | – |
+| Fees, receipts, payment plans, fee reminders | ✓ | – | ✓ |
+| Add / edit learners, classes, teachers; settings; templates; principal's comment; users; backups | ✓ | – | – |
+
+\* A teacher login is linked to a name on the Teachers list and works on the classes where that teacher is class teacher. A teacher login that is not linked can work on every class. Other classes' registers and marks are view only.
+
+- The **server** enforces every rule. Hiding a button is only for convenience.
+- Passwords are stored as salted scrypt hashes. A session is a random token in an HttpOnly cookie, and it ends after 12 hours without use.
+- Five wrong passwords lock that username for 5 minutes on that computer.
+- Changing a password signs that person out on their other devices. An admin resetting someone's password, changing their role or disabling them signs them out everywhere.
+- There is always at least one active admin.
+- Requests that change data must come from the app's own pages, which blocks forged form posts from other websites.
+- Backups (Download backup) do **not** include user accounts or passwords. Restoring a backup or loading the sample data keeps the existing users.
+- A forgotten password is reset by an admin. If the only admin forgets theirs, stop the app and delete the `users` and `sessions` tables, for example with `sqlite3 server/data/school.db "DELETE FROM sessions; DELETE FROM users;"`. The next visit then shows the setup screen again.
+
+**On a network:** logins protect the data, but traffic is plain HTTP. Put it behind HTTPS (a reverse proxy such as Caddy or nginx) before using it beyond one trusted local network.
 
 ## Code layout
 

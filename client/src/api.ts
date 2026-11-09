@@ -1,17 +1,26 @@
-export class ApiError extends Error {}
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) { super(message); this.status = status; }
+}
+
+/** Fired when the session has ended (logged out elsewhere, expired, password reset): the app shows the login screen. */
+export const AUTH_EVENT = 'school:auth-required';
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`/api${path}`, {
     method,
-    headers: body !== undefined ? { 'Content-Type': 'application/json' } : {},
+    credentials: 'same-origin',
+    // the server refuses changing requests without this header, so other sites cannot post forms here
+    headers: { 'X-Requested-With': 'fetch', ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => null);
   if (!res.ok) {
-    if (data?.error) throw new ApiError(data.error);
+    if (res.status === 401 && !path.startsWith('/auth/')) window.dispatchEvent(new Event(AUTH_EVENT));
+    if (data?.error) throw new ApiError(data.error, res.status);
     // no JSON: the dev proxy could not reach the API server (it answers 500 / 502 / 504 with plain text)
-    if (res.status >= 500) throw new ApiError('The API server is not answering. Look in the terminal where you ran "npm run dev" for an error on the [api] lines.');
-    throw new ApiError(`Request failed (${res.status})`);
+    if (res.status >= 500) throw new ApiError('The API server is not answering. Look in the terminal where you ran "npm run dev" for an error on the [api] lines.', res.status);
+    throw new ApiError(`Request failed (${res.status})`, res.status);
   }
   return data as T;
 }

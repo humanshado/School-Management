@@ -39,8 +39,26 @@ function stepSchoolDay(s: Settings, iso: string, dir: 1 | -1) {
   return isoOf(d);
 }
 
+const FEE_KPIS = ['billed', 'paid', 'balance', 'overdueAmount', 'receiptsTodayAmount'] as const;
+const FEE_CLASS = ['billed', 'paid', 'balance', 'overdue', 'plans'] as const;
+const FEE_STU = ['billed', 'paid', 'paidBefore', 'balance', 'overdue'] as const;
+
 export function buildApi(store: Store) {
   const api = Router();
+  // ---- roles (see auth.ts)
+  const MSG = { admin: 'Only an admin can do that', teach: 'Only teachers and admins can do that', fees: 'Only the bursar and admins can see fees' };
+  const need = (req: Request, what: 'admin' | 'teach' | 'fees') => { if (!req.perms?.[what]) throw new HttpError(403, MSG[what]); };
+  const mayTeach = (req: Request, className: string) => !!req.perms?.teach && (!req.perms.classes || req.perms.classes.includes(className));
+  const needClass = (req: Request, className: string) => {
+    need(req, 'teach');
+    const c = req.perms!.classes;
+    if (c && !c.includes(className)) throw new HttpError(403, c.length ? `You can only work on ${c.length === 1 ? `your class (${c[0]})` : `your classes (${c.join(', ')})`}` : 'You are not class teacher of any class yet: ask an admin');
+  };
+  /** Teachers see learners and classes, but no fee figures. */
+  const hideFees = (req: Request) => !req.perms?.fees;
+  const kpisFor = (req: Request, k: Calc['kpis']) => hideFees(req) ? { ...k, ...Object.fromEntries(FEE_KPIS.map((f) => [f, null])) } : k;
+  const classFor = (req: Request, c: any) => (c && hideFees(req) ? { ...c, ...Object.fromEntries(FEE_CLASS.map((f) => [f, null])) } : c);
+  const stuFor = (req: Request, x: StudentStats | undefined) => (x && hideFees(req) ? { ...x, ...Object.fromEntries(FEE_STU.map((f) => [f, null])), feeStatus: '', hasPlan: false, planNext: null } : x);
   const h = (fn: (req: Request) => unknown) => (req: Request, res: any, next: any) => {
     try { res.json(fn(req) ?? { ok: true }); } catch (e) { next(e); }
   };
@@ -50,16 +68,18 @@ export function buildApi(store: Store) {
   const studentOr404 = (id: number) => store.get('students', id) ?? (() => { throw notFound('Learner'); })();
 
   // ------------------------------------------------------------ meta / settings
-  api.get('/meta', h(() => {
+  api.get('/meta', h((req) => {
     const s = S(), c = C();
     return {
+      user: req.user, perms: req.perms,
       settings: s, today: c.today, term: c.term, termStart: c.termStart, termEnd: c.termEnd, feesDue: c.feesDue,
-      schoolDay: c.schoolDay, holiday: c.holiday, kpis: c.kpis, classes: classNames(),
+      schoolDay: c.schoolDay, holiday: c.holiday, kpis: kpisFor(req, c.kpis), classes: classNames(),
       teachers: store.all('teachers', 'ORDER BY name').map((t) => t.name),
     };
   }));
 
   api.put('/settings', h((req) => {
+    need(req, 'admin');
     const next = { ...S(), ...req.body } as Settings;
     if (!str(next.schoolName)) throw bad('School name is required');
     if (!next.terms?.some((t) => t.name === next.currentTerm)) throw bad('Current term must be one of the terms on the calendar');
@@ -69,23 +89,25 @@ export function buildApi(store: Store) {
     return next;
   }));
 
-  api.get('/export', (_req, res) => {
+  api.get('/export', (req, res) => {
+    if (!req.perms?.admin) return res.status(403).json({ error: MSG.admin });
     const out: any = { settings: S() };
     for (const t of Object.keys(TABLES) as TableName[]) out[t] = store.all(t, 'ORDER BY id');
     res.setHeader('Content-Disposition', `attachment; filename="school-backup-${appToday(S())}.json"`);
     res.json(out);
   });
   api.post('/import', h((req) => {
+    need(req, 'admin');
     if (!req.body?.settings || !Array.isArray(req.body?.students)) throw bad('Not a school backup file');
     store.load(req.body);
   }));
-  api.post('/admin/clear-data', h(() => store.clearData()));
-  api.post('/admin/load-sample', h(() => store.load(JSON.parse(readFileSync(SAMPLE_FILE, 'utf8')))));
+  api.post('/admin/clear-data', h((req) => { need(req, 'admin'); store.clearData(); }));
+  api.post('/admin/load-sample', h((req) => { need(req, 'admin'); store.load(JSON.parse(readFileSync(SAMPLE_FILE, 'utf8'))); }));
 
   // ------------------------------------------------------------ students
-  api.get('/students', h(() => {
+  api.get('/students', h((req) => {
     const c = C();
-    return store.all('students', 'ORDER BY className, firstName, lastName').map((st) => ({ ...st, stats: c.byId.get(st.id) }));
+    return store.all('students', 'ORDER BY className, firstName, lastName').map((st) => ({ ...st, stats: stuFor(req, c.byId.get(st.id)) }));
   }));
 
   api.get('/students/:id', h((req) => {
@@ -112,13 +134,14 @@ export function buildApi(store: Store) {
       if (!(m === 'A' || m === 'E' || (m === 'L' && !s.lateCountsPresent))) cell.p++;
       wk.set(w, cell);
     }
+    const fees = !hideFees(req);
     return {
-      student: st, stats: x, subjects,
+      student: st, stats: stuFor(req, x), subjects,
       weeks: [...wk.entries()].map(([w, v]) => ({ label: `W${w}`, pct: Math.round((v.p / v.n) * 1000) / 10 })),
       lastDays: regs.slice(-10).map((r) => ({ date: r.date, mark: markOn.get(r.date)?.mark ?? 'P', note: markOn.get(r.date)?.note ?? '' })),
       absences: att.filter((a) => dayNum(a.date) >= term.start),
-      payments: store.all('payments', 'WHERE studentId = ? ORDER BY date DESC, id DESC', st.id),
-      plans: store.all('paymentPlans', 'WHERE studentId = ? ORDER BY agreedOn DESC', st.id),
+      payments: fees ? store.all('payments', 'WHERE studentId = ? ORDER BY date DESC, id DESC', st.id) : [],
+      plans: fees ? store.all('paymentPlans', 'WHERE studentId = ? ORDER BY agreedOn DESC', st.id) : [],
       comments: store.all('comments', 'WHERE learnerId = ? ORDER BY term', st.id),
     };
   }));
@@ -134,6 +157,7 @@ export function buildApi(store: Store) {
     }
   };
   api.post('/students', h((req) => {
+    need(req, 'admin');
     const b = { status: 'Active', enrolmentDate: appToday(S()), ...req.body };
     if (!str(b.learnerNo)) {
       const n = store.all('students', 'WHERE className = ?', b.className).length + 1;
@@ -145,12 +169,14 @@ export function buildApi(store: Store) {
     return store.insert('students', b);
   }));
   api.put('/students/:id', h((req) => {
+    need(req, 'admin');
     const cur = studentOr404(+req.params.id);
     const b = { ...cur, ...req.body };
     validateStudent(b, cur.id);
     return store.update('students', cur.id, b);
   }));
   api.delete('/students/:id', h((req) => {
+    need(req, 'admin');
     const id = +req.params.id;
     studentOr404(id);
     store.tx(() => {
@@ -161,16 +187,17 @@ export function buildApi(store: Store) {
   }));
 
   // ------------------------------------------------------------ classes
-  api.get('/classes', h(() => {
+  api.get('/classes', h((req) => {
     const c = C();
-    return store.all('classes', 'ORDER BY name').map((r) => ({ ...r, stats: c.classes.find((x) => x.id === r.id) }));
+    return store.all('classes', 'ORDER BY name').map((r) => ({ ...r, stats: classFor(req, c.classes.find((x) => x.id === r.id)) }));
   }));
   const validateClass = (b: any, id?: number) => {
     if (!str(b.name)) throw bad('Class name is required');
     if (store.all('classes', 'WHERE name = ? AND id != ?', str(b.name), id ?? -1).length) throw bad(`There is already a class ${b.name}`);
   };
-  api.post('/classes', h((req) => { validateClass(req.body); const b = { ...req.body }; delete b.id; return store.insert('classes', b); }));
+  api.post('/classes', h((req) => { need(req, 'admin'); validateClass(req.body); const b = { ...req.body }; delete b.id; return store.insert('classes', b); }));
   api.put('/classes/:id', h((req) => {
+    need(req, 'admin');
     const cur = store.get('classes', +req.params.id);
     if (!cur) throw notFound('Class');
     const b = { ...cur, ...req.body };
@@ -183,6 +210,7 @@ export function buildApi(store: Store) {
     });
   }));
   api.delete('/classes/:id', h((req) => {
+    need(req, 'admin');
     const cur = store.get('classes', +req.params.id);
     if (!cur) throw notFound('Class');
     const n = store.all('students', 'WHERE className = ?', cur.name).length;
@@ -195,26 +223,30 @@ export function buildApi(store: Store) {
     const cls = store.all('classes');
     return store.all('teachers', 'ORDER BY name').map((t) => ({ ...t, classes: cls.filter((c) => c.teacher === t.name).map((c) => c.name) }));
   }));
-  api.post('/teachers', h((req) => { if (!str(req.body.name)) throw bad('Teacher name is required'); const b = { ...req.body }; delete b.id; return store.insert('teachers', b); }));
+  api.post('/teachers', h((req) => { need(req, 'admin'); if (!str(req.body.name)) throw bad('Teacher name is required'); const b = { ...req.body }; delete b.id; return store.insert('teachers', b); }));
   api.put('/teachers/:id', h((req) => {
+    need(req, 'admin');
     const cur = store.get('teachers', +req.params.id);
     if (!cur) throw notFound('Teacher');
     const b = { ...cur, ...req.body };
     if (!str(b.name)) throw bad('Teacher name is required');
     return store.tx(() => {
-      if (b.name !== cur.name) store.db.prepare('UPDATE classes SET teacher = ? WHERE teacher = ?').run(b.name, cur.name);
+      if (b.name !== cur.name) {
+        store.db.prepare('UPDATE classes SET teacher = ? WHERE teacher = ?').run(b.name, cur.name);
+        store.db.prepare('UPDATE users SET teacherName = ? WHERE teacherName = ?').run(b.name, cur.name);
+      }
       store.db.prepare(`UPDATE teachers SET ${TABLES.teachers.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`).run(...TABLES.teachers.map((k) => b[k] ?? null), cur.id);
       return store.get('teachers', cur.id);
     });
   }));
-  api.delete('/teachers/:id', h((req) => { if (!store.remove('teachers', +req.params.id)) throw notFound('Teacher'); }));
+  api.delete('/teachers/:id', h((req) => { need(req, 'admin'); if (!store.remove('teachers', +req.params.id)) throw notFound('Teacher'); }));
 
   // ------------------------------------------------------------ today
-  api.get('/today', h(() => {
+  api.get('/today', h((req) => {
     const s = S(), c = C();
     const detail = (x: StudentStats) => {
       const st = store.get('students', x.id)!;
-      return { ...x, guardianName: st.guardianName, guardianPhone: st.guardianPhone, guardianEmail: st.guardianEmail };
+      return { ...stuFor(req, x)!, guardianName: st.guardianName, guardianPhone: st.guardianPhone, guardianEmail: st.guardianEmail };
     };
     const t = dayNum(c.today);
     const upcoming = [
@@ -228,15 +260,16 @@ export function buildApi(store: Store) {
       .sort((a, b) => a.date.localeCompare(b.date))
       .filter((e, i, arr) => arr.findIndex((y) => y.date === e.date && y.label === e.label) === i);
     return {
-      today: c.today, term: c.term, schoolDay: c.schoolDay, holiday: c.holiday, kpis: c.kpis, weeks: c.weeks,
-      classes: c.classes, risk: c.riskIds.map((id) => detail(c.byId.get(id)!)), watch: c.watchIds.map((id) => detail(c.byId.get(id)!)),
+      today: c.today, term: c.term, schoolDay: c.schoolDay, holiday: c.holiday, kpis: kpisFor(req, c.kpis), weeks: c.weeks,
+      classes: c.classes.map((k) => classFor(req, k)), risk: c.riskIds.map((id) => detail(c.byId.get(id)!)), watch: c.watchIds.map((id) => detail(c.byId.get(id)!)),
       upcoming, flagMax: c.flagMax,
-      receipts: store.all('payments', 'WHERE date = ? ORDER BY id DESC', c.today).map((p) => ({ ...p, name: c.byId.get(p.studentId)?.name })),
+      receipts: hideFees(req) ? [] : store.all('payments', 'WHERE date = ? ORDER BY id DESC', c.today).map((p) => ({ ...p, name: c.byId.get(p.studentId)?.name })),
     };
   }));
 
   // ------------------------------------------------------------ registers / attendance
   api.get('/register', h((req) => {
+    need(req, 'teach');
     const s = S(), c = C();
     const className = str(req.query.class) || classNames()[0];
     const date = isIso(req.query.date) ? (req.query.date as string) : c.today;
@@ -259,17 +292,19 @@ export function buildApi(store: Store) {
       weekend: weekday(dayNum(date)) > 5, schoolDay: isSchoolDay(s, date), learners,
       prevDay: stepSchoolDay(s, date, -1), nextDay: stepSchoolDay(s, date, 1), today: c.today,
       teacher: store.all('classes', 'WHERE name = ?', className)[0]?.teacher ?? '',
+      canEdit: mayTeach(req, className),
     };
   }));
 
   api.post('/register', h((req) => {
     const { className, date, marks } = req.body ?? {};
     if (!classNames().includes(className)) throw bad('Unknown class');
+    needClass(req, className);
     if (!isIso(date)) throw bad('Pick a date');
     if (date > C().today) throw bad('A register cannot be taken for a future date');
     if (!Array.isArray(marks)) throw bad('No marks sent');
     const valid = new Set(store.all('students', 'WHERE className = ?', className).filter(isActive).map((st) => st.id));
-    const teacher = str(req.body.takenBy) || store.all('classes', 'WHERE name = ?', className)[0]?.teacher || '';
+    const teacher = req.user!.name;
     let present = 0, enrolled = 0;
     store.tx(() => {
       store.db.prepare('DELETE FROM attendance WHERE className = ? AND date = ?').run(className, date);
@@ -290,6 +325,7 @@ export function buildApi(store: Store) {
 
   api.delete('/register', h((req) => {
     const className = str(req.query.class), date = str(req.query.date);
+    needClass(req, className);
     store.tx(() => {
       store.db.prepare('DELETE FROM attendance WHERE className = ? AND date = ?').run(className, date);
       store.db.prepare('DELETE FROM registers WHERE className = ? AND date = ?').run(className, date);
@@ -298,6 +334,7 @@ export function buildApi(store: Store) {
 
   // ------------------------------------------------------------ gradebook
   api.get('/gradebook', h((req) => {
+    need(req, 'teach');
     const s = S();
     const className = str(req.query.class) || classNames()[0];
     const term = str(req.query.term) || s.currentTerm;
@@ -310,13 +347,14 @@ export function buildApi(store: Store) {
     }
     const counts = store.db.prepare('SELECT subject, COUNT(*) AS n FROM assessments WHERE className = ? AND term = ? GROUP BY subject').all(className, term) as { subject: string; n: number }[];
     return {
-      className, term, subjects: s.subjects, classAvg,
+      className, term, subjects: s.subjects, classAvg, canEdit: mayTeach(req, className),
       assessmentCounts: Object.fromEntries(counts.map((r) => [r.subject, r.n])),
       learners: learners.map((x) => ({ id: x.id, name: x.name, marks: x.marks, avg: x.avg, chg: x.chg, pos: x.pos, att: x.att, flags: x.flags })),
     };
   }));
 
   api.get('/assessments', h((req) => {
+    need(req, 'teach');
     const s = S();
     const className = str(req.query.class), term = str(req.query.term) || s.currentTerm, subject = str(req.query.subject);
     const assessments = store.all('assessments', 'WHERE className = ? AND term = ? AND subject = ? ORDER BY date, id', className, term, subject);
@@ -328,7 +366,7 @@ export function buildApi(store: Store) {
       marks: Object.fromEntries(marks.filter((m) => m.learnerId === st.id).map((m) => [m.assessmentId, m.mark])),
       termMark: tm.get(st.id)?.[subject] ?? null,
     }));
-    return { className, term, subject, assessments, learners };
+    return { className, term, subject, assessments, learners, canEdit: mayTeach(req, className) };
   }));
 
   const validateAssessment = (b: any) => {
@@ -341,10 +379,11 @@ export function buildApi(store: Store) {
     if (!(num(b.outOf) > 0)) throw bad('"Out of" must be more than 0');
     if (b.date && !isIso(b.date)) throw bad('Assessment date is not a valid date');
   };
-  api.post('/assessments', h((req) => { const b = { outOf: 100, ...req.body }; delete b.id; validateAssessment(b); return store.insert('assessments', b); }));
+  api.post('/assessments', h((req) => { const b = { outOf: 100, ...req.body }; delete b.id; validateAssessment(b); needClass(req, b.className); return store.insert('assessments', b); }));
   api.post('/assessments/defaults', h((req) => {
     const s = S();
     const { className, term } = req.body ?? {};
+    needClass(req, className);
     const subjects: string[] = req.body.subject ? [req.body.subject] : s.subjects;
     let added = 0;
     store.tx(() => {
@@ -365,10 +404,15 @@ export function buildApi(store: Store) {
     if (!cur) throw notFound('Assessment');
     const b = { ...cur, ...req.body };
     validateAssessment(b);
+    needClass(req, cur.className);
+    needClass(req, b.className);
     return store.update('assessments', cur.id, b);
   }));
   api.delete('/assessments/:id', h((req) => {
     const id = +req.params.id;
+    const cur = store.get('assessments', id);
+    if (!cur) throw notFound('Assessment');
+    needClass(req, cur.className);
     store.tx(() => {
       store.db.prepare('DELETE FROM marks WHERE assessmentId = ?').run(id);
       store.db.prepare('DELETE FROM assessments WHERE id = ?').run(id);
@@ -378,9 +422,12 @@ export function buildApi(store: Store) {
   api.put('/marks', h((req) => {
     const list = req.body?.marks;
     if (!Array.isArray(list)) throw bad('No marks sent');
-    const outOf = new Map(store.all('assessments').map((a) => [a.id, a.outOf > 0 ? a.outOf : 100]));
+    const all = store.all('assessments');
+    const outOf = new Map(all.map((a) => [a.id, a.outOf > 0 ? a.outOf : 100]));
+    const classOf = new Map(all.map((a) => [a.id, a.className as string]));
     for (const m of list) {
       if (!outOf.has(Number(m.assessmentId))) throw bad('Unknown assessment');
+      needClass(req, classOf.get(Number(m.assessmentId))!);
       if (m.mark !== null && m.mark !== '' && m.mark !== undefined) {
         const v = Number(m.mark);
         if (!Number.isFinite(v) || v < 0 || v > outOf.get(Number(m.assessmentId))!) throw bad(`Mark ${m.mark} is not between 0 and ${outOf.get(Number(m.assessmentId))}`);
@@ -428,17 +475,23 @@ export function buildApi(store: Store) {
     };
   };
   api.get('/report-cards', h((req) => {
+    need(req, 'teach');
     const s = S();
     const term = str(req.query.term) || s.currentTerm;
     const c = C(term === s.currentTerm ? undefined : term);
     const ids = req.query.learner
       ? [studentOr404(+req.query.learner!)]
       : store.all('students', 'WHERE className = ? ORDER BY firstName, lastName', str(req.query.class)).filter(isActive);
-    return { school: { name: s.schoolName, address: s.schoolAddress, contact: s.schoolContact, principal: s.principal }, gradeBands: s.gradeBands, cards: ids.map((st) => reportCard(st, term, c)) };
+    return {
+      school: { name: s.schoolName, address: s.schoolAddress, contact: s.schoolContact, principal: s.principal }, gradeBands: s.gradeBands,
+      cards: ids.map((st) => ({ ...reportCard(st, term, c), canEditTeacher: mayTeach(req, st.className), canEditPrincipal: !!req.perms?.admin })),
+    };
   }));
   api.put('/comments', h((req) => {
     const { learnerId, term } = req.body ?? {};
-    studentOr404(+learnerId);
+    const st = studentOr404(+learnerId);
+    if ('teacherComment' in (req.body ?? {})) needClass(req, st.className);
+    if ('principalComment' in (req.body ?? {})) need(req, 'admin');
     const ex = store.all('comments', 'WHERE learnerId = ? AND term = ?', +learnerId, term)[0];
     const patch: any = {};
     if ('teacherComment' in req.body) patch.teacherComment = req.body.teacherComment;
@@ -448,6 +501,7 @@ export function buildApi(store: Store) {
 
   // ------------------------------------------------------------ fees, payments, plans
   api.get('/fees', h((req) => {
+    need(req, 'fees');
     const s = S(), c = C();
     const className = str(req.query.class);
     const learners = c.students.filter((x) => x.active && (!className || x.className === className))
@@ -473,6 +527,7 @@ export function buildApi(store: Store) {
     if (!str(b.receiptNo)) throw bad('Receipt No is required');
   };
   api.get('/payments/:id', h((req) => {
+    need(req, 'fees');
     const s = S(), c = C();
     const p = store.get('payments', +req.params.id);
     if (!p) throw notFound('Payment');
@@ -487,6 +542,7 @@ export function buildApi(store: Store) {
     };
   }));
   api.post('/payments', h((req) => {
+    need(req, 'fees');
     const s = S();
     const b = { date: appToday(s), term: s.currentTerm, receiptNo: nextReceipt(), ...req.body };
     delete b.id;
@@ -495,13 +551,14 @@ export function buildApi(store: Store) {
     return store.insert('payments', b);
   }));
   api.put('/payments/:id', h((req) => {
+    need(req, 'fees');
     const cur = store.get('payments', +req.params.id);
     if (!cur) throw notFound('Payment');
     const b = { ...cur, ...req.body };
     validatePayment(b);
     return store.update('payments', cur.id, b);
   }));
-  api.delete('/payments/:id', h((req) => { if (!store.remove('payments', +req.params.id)) throw notFound('Payment'); }));
+  api.delete('/payments/:id', h((req) => { need(req, 'fees'); if (!store.remove('payments', +req.params.id)) throw notFound('Payment'); }));
 
   const validatePlan = (b: any) => {
     if (!b.studentId) throw bad('Pick a learner');
@@ -511,6 +568,7 @@ export function buildApi(store: Store) {
     if (!isIso(b.nextDue)) throw bad('Next due date is required');
   };
   api.post('/paymentPlans', h((req) => {
+    need(req, 'fees');
     const s = S();
     const b = { term: s.currentTerm, agreedOn: appToday(s), ...req.body };
     delete b.id;
@@ -518,13 +576,14 @@ export function buildApi(store: Store) {
     return store.insert('paymentPlans', b);
   }));
   api.put('/paymentPlans/:id', h((req) => {
+    need(req, 'fees');
     const cur = store.get('paymentPlans', +req.params.id);
     if (!cur) throw notFound('Payment plan');
     const b = { ...cur, ...req.body };
     validatePlan(b);
     return store.update('paymentPlans', cur.id, b);
   }));
-  api.delete('/paymentPlans/:id', h((req) => { if (!store.remove('paymentPlans', +req.params.id)) throw notFound('Payment plan'); }));
+  api.delete('/paymentPlans/:id', h((req) => { need(req, 'fees'); if (!store.remove('paymentPlans', +req.params.id)) throw notFound('Payment plan'); }));
 
   // ------------------------------------------------------------ dashboard
   api.get('/dashboard', h((req) => {
@@ -543,7 +602,8 @@ export function buildApi(store: Store) {
     const spread = (s.gradeBands ?? []).map((b) => ({ band: b.band, meaning: b.meaning, n: active.filter((x) => x.avg !== null && band(s, x.avg)?.band === b.band).length }));
     const movers = active.filter((x) => x.chg !== null).sort((a, b) => b.chg! - a.chg!);
     return {
-      term, today: c.today, kpis: c.kpis, weeks: c.weeks, days, heat, spread, classes: c.classes, useFees: s.useFees,
+      term, today: c.today, kpis: kpisFor(req, c.kpis), weeks: c.weeks, days, heat, spread, classes: c.classes.map((k) => classFor(req, k)),
+      useFees: s.useFees && !hideFees(req),
       up: movers.slice(0, 5).map(({ id, name, className, avg, chg }) => ({ id, name, className, avg, chg })),
       down: movers.slice(-5).reverse().map(({ id, name, className, avg, chg }) => ({ id, name, className, avg, chg })),
       notTaken: c.classes.filter((k) => k.today === 'No').map((k) => k.name),
@@ -582,6 +642,8 @@ export function buildApi(store: Store) {
     const { kind, learnerIds, date, term } = req.body ?? {};
     const tpl = s.templates?.[kind as keyof Settings['templates']];
     if (!tpl) throw bad('Unknown message type');
+    if (kind === 'fees') need(req, 'fees');
+    if (kind === 'absent' || kind === 'report') for (const id of (learnerIds as number[] ?? [])) needClass(req, store.get('students', +id)?.className ?? '');
     const due = c.feesDue;
     return (learnerIds as number[] ?? []).map((id) => {
       const st = store.get('students', +id);
@@ -590,7 +652,7 @@ export function buildApi(store: Store) {
       const details = [
         `· Attendance this term: ${pct(x.att)} (${x.absent} day${x.absent === 1 ? '' : 's'} absent, ${x.late} late)`,
         `· Term average: ${x.avg === null ? '–' : Math.round(x.avg)}${x.chg !== null ? ` (${x.chg >= 0 ? '+' : ''}${Math.round(x.chg)} vs last term)` : ''}`,
-        ...(s.useFees ? [`· Fees: ${x.balance > 0.005 ? `${money(s, x.balance)} still to pay` : 'paid'}${x.overdue > 0 ? ' (overdue)' : ''}`] : []),
+        ...(s.useFees && !hideFees(req) ? [`· Fees: ${x.balance > 0.005 ? `${money(s, x.balance)} still to pay` : 'paid'}${x.overdue > 0 ? ' (overdue)' : ''}`] : []),
       ].join('\n');
       const tags: Record<string, string> = {
         Guardian: st.guardianName || 'Parent / Guardian', First: st.firstName ?? '', Last: st.lastName ?? '', Class: st.className ?? '',

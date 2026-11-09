@@ -1,13 +1,14 @@
 import { useSearchParams } from 'react-router-dom';
 import Register from '../components/Register';
-import { Card, PageHead, Select, useApi, useMeta } from '../components/ui';
+import { Card, PageHead, Select, useApi, useMeta, usePerms } from '../components/ui';
 import { fmtLong } from '../format';
 import type { ClassStats } from '../types';
 
 export default function Attendance() {
   const { meta } = useMeta();
+  const { defaultClass } = usePerms();
   const [sp, setSp] = useSearchParams();
-  const cls = sp.get('class') && meta.classes.includes(sp.get('class')!) ? sp.get('class')! : meta.classes[0] ?? '';
+  const cls = sp.get('class') && meta.classes.includes(sp.get('class')!) ? sp.get('class')! : defaultClass;
   const date = sp.get('date') ?? meta.today;
   const { data, reload } = useApi<{ classes: ClassStats[] }>('/today');
   const set = (patch: Record<string, string>) => setSp({ class: cls, date, ...patch }, { replace: true });
