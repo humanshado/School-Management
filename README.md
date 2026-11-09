@@ -39,7 +39,7 @@ npm start
 
 - **"needs Node.js 22.13 or newer"**: run `node -v`; install the current LTS from https://nodejs.org.
 - **"Port 3001 is already in use"**: the app is already running in another terminal. Close it first.
-- After pulling a new version, run `npm install` again: the server no longer uses `tsx` (its build tool needed macOS 12 or newer). Node runs the TypeScript directly.
+- **"dyld: Symbol not found: _SecTrustCopyCertificateChain"** (macOS 11 or older): an esbuild newer than 0.26 was installed. The project pins esbuild 0.25.12, which supports macOS 11, so pull the latest code, delete `node_modules` and run `npm install` again.
 
 ## Screens
 
