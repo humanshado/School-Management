@@ -53,7 +53,7 @@ export default function App() {
   useEffect(() => { reload(); }, [reload]);
   useEffect(() => { setNavOpen(false); }, [loc.pathname]);
 
-  if (err && !meta) return <div className="boot"><ErrorBox error={`Could not reach the server: ${err}`} retry={reload} /></div>;
+  if (err && !meta) return <div className="boot"><ErrorBox error={err} retry={reload} /></div>;
   if (!meta) return <div className="boot"><Loading /></div>;
   const s = meta.settings;
 

@@ -33,6 +33,14 @@ npm start
 | `PORT` | `3001` | port of the server |
 | `DB_PATH` | `server/data/school.db` | the SQLite database file; created and loaded with the sample data the first time |
 
+### If the page says the API server is not answering
+
+`npm run dev` starts two things: the API (`[api]` lines) and the web page (`[web]` lines). If only the web page starts, look at the `[api]` lines in that terminal:
+
+- **"needs Node.js 22.13 or newer"**: run `node -v`; install the current LTS from https://nodejs.org.
+- **"Port 3001 is already in use"**: the app is already running in another terminal. Close it first.
+- Node also prints a one-line "SQLite is an experimental feature" note. That is harmless.
+
 ## Screens
 
 | Workbook sheet | Web screen | What it does |

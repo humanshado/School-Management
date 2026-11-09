@@ -6,8 +6,13 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
     headers: body !== undefined ? { 'Content-Type': 'application/json' } : {},
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(data.error ?? `Request failed (${res.status})`);
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    if (data?.error) throw new ApiError(data.error);
+    // no JSON: the dev proxy could not reach the API server (it answers 500 / 502 / 504 with plain text)
+    if (res.status >= 500) throw new ApiError('The API server is not answering. Look in the terminal where you ran "npm run dev" for an error on the [api] lines.');
+    throw new ApiError(`Request failed (${res.status})`);
+  }
   return data as T;
 }
 

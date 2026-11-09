@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx watch src/index.ts",
-    "start": "NODE_ENV=production NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx src/index.ts",
-    "seed": "NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx src/seed.ts",
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts --serve-client",
+    "seed": "tsx src/seed.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --disable-warning=ExperimentalWarning --import tsx --test test/*.test.ts"
   },
