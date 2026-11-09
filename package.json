@@ -1,0 +1,19 @@
+{
+  "name": "school-management",
+  "version": "1.0.0",
+  "private": true,
+  "description": "School management web app: attendance, gradebook, report cards, fees, calendar and communications.",
+  "workspaces": ["server", "client"],
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,magenta \"npm:dev -w server\" \"npm:dev -w client\"",
+    "build": "npm run build -w client",
+    "start": "npm start -w server",
+    "seed": "npm run seed -w server",
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w client",
+    "test": "npm test -w server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "engines": { "node": ">=22.13" }
+}
