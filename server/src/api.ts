@@ -8,7 +8,8 @@ import {
 import type { Settings } from './types.ts';
 
 export class HttpError extends Error {
-  constructor(public status: number, message: string) { super(message); }
+  status: number;
+  constructor(status: number, message: string) { super(message); this.status = status; }
 }
 const bad = (msg: string) => new HttpError(400, msg);
 const notFound = (what: string) => new HttpError(404, `${what} not found`);

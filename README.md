@@ -6,7 +6,7 @@ It comes loaded with the workbook's sample school (Alder Valley Academy: 14 clas
 
 ## Run it
 
-You need **Node.js 22.13 or newer**. Nothing else: the database is the SQLite built into Node.
+You need **Node.js 22.13 or newer**. Nothing else: the database is the SQLite built into Node, and Node runs the server's TypeScript directly (no build tools for the server).
 
 ```bash
 npm install
@@ -39,7 +39,7 @@ npm start
 
 - **"needs Node.js 22.13 or newer"**: run `node -v`; install the current LTS from https://nodejs.org.
 - **"Port 3001 is already in use"**: the app is already running in another terminal. Close it first.
-- Node also prints a one-line "SQLite is an experimental feature" note. That is harmless.
+- After pulling a new version, run `npm install` again: the server no longer uses `tsx` (its build tool needed macOS 12 or newer). Node runs the TypeScript directly.
 
 ## Screens
 
