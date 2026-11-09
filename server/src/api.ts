@@ -464,6 +464,7 @@ export function buildApi(store: Store) {
   };
   const validatePayment = (b: any) => {
     const s = S();
+    if (!b.studentId) throw bad('Pick a learner');
     studentOr404(+b.studentId);
     if (!isIso(b.date)) throw bad('Payment date is required');
     if (!(num(b.amount) > 0)) throw bad('Amount must be more than 0');
@@ -502,6 +503,7 @@ export function buildApi(store: Store) {
   api.delete('/payments/:id', h((req) => { if (!store.remove('payments', +req.params.id)) throw notFound('Payment'); }));
 
   const validatePlan = (b: any) => {
+    if (!b.studentId) throw bad('Pick a learner');
     studentOr404(+b.studentId);
     if (!S().terms.some((t) => t.name === b.term)) throw bad('Pick a term');
     if (!(num(b.instalment) > 0)) throw bad('Instalment must be more than 0');
