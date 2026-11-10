@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, qs } from '../api';
 import { PaymentModal, PlanModal, ReceiptModal } from '../components/Payments';
+import { FeeDocModal } from '../components/Invoice';
 import { Card, Empty, ErrorBox, Kpi, Loading, MessagesModal, Meter, PageHead, useAction, useApi, useMeta } from '../components/ui';
 import { fmtDate, fmtShort, money, pct } from '../format';
 import type { ClassStats, Kpis } from '../types';
@@ -22,6 +23,7 @@ export default function Fees() {
   const [plan, setPlan] = useState<any>(null);
   const [receipt, setReceipt] = useState<number | null>(null);
   const [remind, setRemind] = useState<number[] | null>(null);
+  const [invoices, setInvoices] = useState(false);
   const { run } = useAction();
 
   const learners = useMemo(() => (data?.learners ?? []).filter((l) => show === 'all' || (show === 'overdue' ? l.overdue > 0 : l.balance > 0.005)).sort((a, b) => b.overdue - a.overdue || b.balance - a.balance), [data, show]);
@@ -37,6 +39,7 @@ export default function Fees() {
   return (
     <>
       <PageHead title="Fees & Receipts" sub={`${data.term}${data.feesDue ? ` · fees due ${fmtDate(data.feesDue)}` : ''}`}>
+        <button className="btn" onClick={() => setInvoices(true)}>Invoices…</button>
         <button className="btn" disabled={!overdueIds.length} onClick={() => setRemind(overdueIds)}>Send reminders ({overdueIds.length})</button>
         <button className="btn primary" onClick={() => setPay({})}>Record payment</button>
       </PageHead>
@@ -140,6 +143,8 @@ export default function Fees() {
       {pay && <PaymentModal initial={pay} learners={pay.id ? undefined : allLearners} onClose={() => setPay(null)} onSaved={(p) => { setPay(null); refresh(); if (!pay.id) setReceipt(p.id); }} />}
       {plan && <PlanModal initial={plan} learners={plan.id || plan.studentId ? undefined : allLearners} onClose={() => setPlan(null)} onSaved={() => { setPlan(null); refresh(); }} />}
       {receipt && <ReceiptModal id={receipt} onClose={() => setReceipt(null)} />}
+      {invoices && <FeeDocModal kind="invoices" title="Invoices" s={s} terms={s.terms.map((t) => t.name)} term={data.term} classes={meta.classes}
+        path={({ term, cls }) => `/fees/invoices?class=${encodeURIComponent(cls)}&term=${encodeURIComponent(term)}`} onClose={() => setInvoices(false)} />}
       {remind && <MessagesModal kind="fees" learnerIds={remind} title={`Fee reminders · ${remind.length} overdue`} onClose={() => setRemind(null)} />}
     </>
   );

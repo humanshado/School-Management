@@ -65,8 +65,8 @@ export default function Admin() {
 
         <Card title="Grading scale">
           <RowsEditor rows={s.gradeBands} onChange={(v) => d.set('gradeBands', v)} addLabel="Add band" blank={{ band: '', from: 0, meaning: '' }}
-            cols={[{ key: 'band', label: 'Grade', width: '20%' }, { key: 'from', label: 'From', type: 'number', width: '22%' }, { key: 'meaning', label: 'Meaning' }]} />
-          <p className="muted small">"From" is the lowest mark in the band. Sorted highest first when saved.</p>
+            cols={[{ key: 'band', label: 'Grade', width: '16%' }, { key: 'from', label: 'From', type: 'number', width: '18%' }, { key: 'points', label: 'GPA points', type: 'number', width: '18%', placeholder: 'auto' }, { key: 'meaning', label: 'Meaning' }]} />
+          <p className="muted small">"From" is the lowest mark in the band. GPA points left empty count down from the top band (A=4 … E=0 with five bands). Sorted highest first when saved.</p>
         </Card>
 
         <Card title="Subjects"><StringList value={s.subjects} onChange={(v) => d.set('subjects', v)} placeholder="Add subject…" /></Card>

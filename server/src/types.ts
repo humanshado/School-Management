@@ -22,7 +22,7 @@ export interface Settings {
   payMethods: string[];
   studentStatuses: string[];
   /** highest band first; "from" = the lowest mark in the band */
-  gradeBands: { band: string; from: number; meaning: string }[];
+  gradeBands: { band: string; from: number; meaning: string; points?: number }[];
   optionalFees: { name: string; amount: number }[];
   subjects: string[];
   relationships: string[];

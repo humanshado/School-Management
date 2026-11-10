@@ -63,7 +63,7 @@ export function RowsEditor<T extends Record<string, any>>({ rows, cols, onChange
               {cols.map((c) => (
                 <td key={c.key}>
                   <input type={c.type ?? 'text'} value={r[c.key] ?? ''} placeholder={c.placeholder} aria-label={c.label} disabled={readOnly}
-                    onChange={(e) => onChange(rows.map((x, j) => (j === i ? { ...x, [c.key]: c.type === 'number' ? (e.target.value === '' ? 0 : +e.target.value) : e.target.value } : x)))} />
+                    onChange={(e) => onChange(rows.map((x, j) => (j === i ? { ...x, [c.key]: c.type === 'number' ? (e.target.value === '' ? (c.placeholder ? undefined : 0) : +e.target.value) : e.target.value } : x)))} />
                 </td>
               ))}
               <td>{!readOnly && <button className="icon-btn" onClick={() => onChange(rows.filter((_, j) => j !== i))} aria-label="Remove row">×</button>}</td>

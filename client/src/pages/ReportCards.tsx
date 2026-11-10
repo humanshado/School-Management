@@ -10,7 +10,7 @@ export interface RC {
   subjects: { subject: string; mark: number | null; band: string; meaning: string; classAvg: number | null; prev: number | null }[];
   avg: number | null; band: string; chg: number | null; pos: number | null; classSize: number;
   attendance: { present: number; taken: number; absent: number; late: number; att: number | null };
-  teacherComment: string; principalComment: string; nextTermStarts: string | null; canEditTeacher: boolean; canEditPrincipal: boolean;
+  teacherComment: string; principalComment: string; nextTermStarts: string | null; canEditTeacher: boolean; canEditPrincipal: boolean; gpa?: number | null; gpaCumulative?: number | null;
 }
 export interface RCData { school: { name: string; address: string; contact: string; principal: string }; gradeBands: { band: string; from: number; meaning: string }[]; cards: RC[] }
 
@@ -107,6 +107,7 @@ export function ReportCard({ rc, school, bands, readOnly, onSaved }: { rc: RC; s
       <div className="rc-summary">
         <div><span>Average</span><b>{num1(rc.avg)}</b><small>Grade {rc.band || '–'}</small></div>
         <div><span>Change</span><b>{signed(rc.chg)}</b><small>vs last term</small></div>
+        <div><span>GPA</span><b>{rc.gpa ?? '–'}</b><small>{rc.gpaCumulative !== null && rc.gpaCumulative !== undefined ? `cumulative ${rc.gpaCumulative}` : 'this term'}</small></div>
         <div><span>Position</span><b>{rc.pos ?? '–'}</b><small>of {rc.classSize}</small></div>
         <div><span>Attendance</span><b>{pct(a.att)}</b><small>{a.present} of {a.taken} days · {a.late} late</small></div>
       </div>

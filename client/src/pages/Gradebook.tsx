@@ -6,7 +6,7 @@ import { bandOf, fmtShort, num1, pct, signed } from '../format';
 
 interface GB {
   className: string; term: string; subjects: string[]; classAvg: Record<string, number | null>; assessmentCounts: Record<string, number>; canEdit: boolean;
-  learners: { id: number; name: string; marks: Record<string, number>; avg: number | null; chg: number | null; pos: number | null; att: number | null; flags: number }[];
+  learners: { id: number; name: string; marks: Record<string, number>; avg: number | null; chg: number | null; pos: number | null; att: number | null; flags: number; gpa: number | null }[];
 }
 interface Assessment { id: number; term: string; className: string; subject: string; name: string; weight: number; outOf: number; date: string | null }
 interface AS { canEdit: boolean; assessments: Assessment[]; learners: { id: number; name: string; marks: Record<number, number>; termMark: number | null }[] }
@@ -58,7 +58,7 @@ function TermMarks({ cls, term, onSubject }: { cls: string; term: string; onSubj
             <tr>
               <th>#</th><th>Learner</th>
               {data.subjects.map((x) => <th key={x} className="num subj"><button className="link" onClick={() => onSubject(x)}>{x}</button><small>{data.assessmentCounts[x] ?? 0} assess.</small></th>)}
-              <th className="num">Average</th><th className="num">Change</th><th className="num">Pos.</th><th className="num">Attend.</th><th />
+              <th className="num">Average</th><th className="num">GPA</th><th className="num">Change</th><th className="num">Pos.</th><th className="num">Attend.</th><th />
             </tr>
           </thead>
           <tbody>
@@ -68,6 +68,7 @@ function TermMarks({ cls, term, onSubject }: { cls: string; term: string; onSubj
                 <td><Link to={`/students/${l.id}`}>{l.name}</Link></td>
                 {data.subjects.map((x) => <td key={x} className={`num ${color(l.marks[x])}`}>{l.marks[x] ?? ''}</td>)}
                 <td className="num"><b>{num1(l.avg)}</b></td>
+                <td className="num">{l.gpa ?? '–'}</td>
                 <td className={`num ${l.chg !== null && l.chg <= -s.riskDrop ? 'bad-text' : l.chg !== null && l.chg > 0 ? 'good-text' : ''}`}>{signed(l.chg)}</td>
                 <td className="num">{l.pos ?? '–'}</td>
                 <td className="num">{pct(l.att)}</td>
@@ -76,7 +77,7 @@ function TermMarks({ cls, term, onSubject }: { cls: string; term: string; onSubj
             ))}
           </tbody>
           <tfoot>
-            <tr><td /><td>Class average</td>{data.subjects.map((x) => <td key={x} className="num">{num1(data.classAvg[x])}</td>)}<td colSpan={5} /></tr>
+            <tr><td /><td>Class average</td>{data.subjects.map((x) => <td key={x} className="num">{num1(data.classAvg[x])}</td>)}<td colSpan={6} /></tr>
           </tfoot>
         </table>
       </div>

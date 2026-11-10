@@ -14,6 +14,7 @@ import Apply from './pages/Apply';
 import Library from './pages/Library';
 import Transport from './pages/Transport';
 import Hr from './pages/Hr';
+import Reports from './pages/Reports';
 import Today from './pages/Today';
 import Students from './pages/Students';
 import Classes from './pages/Classes';
@@ -42,6 +43,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
     { to: '/timetable', label: 'Timetable', icon: '▦', status: () => 'lessons · cover · exams' },
     { to: '/homework', label: 'Homework', icon: '✐', allow: teach, status: () => 'homework · materials' },
     { to: '/report-cards', label: 'Report Cards', icon: '▤', allow: teach, status: (m) => `${m.kpis.ready} ready to print` },
+    { to: '/reports', label: 'Reports', icon: '📈', status: () => 'analytics · CSV' },
     { to: '/dashboard', label: 'Dashboard', icon: '▦', status: () => 'registers · classes' },
   ] },
   { group: 'People', items: [
@@ -164,6 +166,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
               <Route path="/library" element={guard(p.library, <Library />)} />
               <Route path="/transport" element={guard(p.transport, <Transport />)} />
               <Route path="/staff" element={guard(p.hr, <Hr />)} />
+              <Route path="/reports" element={<Reports />} />
               <Route path="*" element={<Navigate to="/today" replace />} />
             </Routes>
           </main>

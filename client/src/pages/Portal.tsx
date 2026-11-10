@@ -6,6 +6,7 @@ import { daysBetween, fmtDate, fmtDay, fmtShort, markClass, money, num1, pct, RO
 import type { FileDoc, Settings, User } from '../types';
 import { NoticeItem, type Notice } from './Notices';
 import { ReportCard, type RCData } from './ReportCards';
+import { FeeDocModal } from '../components/Invoice';
 import { WeekGrid } from './Timetable';
 
 interface Me {
@@ -60,6 +61,7 @@ export default function Portal({ onLogout }: { onLogout: () => void }) {
 function LearnerTabs({ id, me, tab, go }: { id: number; me: Me; tab: Tab; go: (t: Tab) => void }) {
   const { data, error, reload } = useApi<any>(`/portal/learners/${id}`);
   const [receipt, setReceipt] = useState<number | null>(null);
+  const [doc, setDoc] = useState<'invoice' | 'statement' | null>(null);
   if (error) return <ErrorBox error={error} retry={reload} />;
   if (!data) return <Loading />;
   const s = me.settings;
@@ -110,6 +112,9 @@ function LearnerTabs({ id, me, tab, go }: { id: number; me: Me; tab: Tab; go: (t
         <Kpi label="Paid" value={money(s, f.paid)} tone="good" />
         <Kpi label="Still to pay" value={money(s, Math.max(0, f.balance))} sub={f.status} tone={f.overdue ? 'bad' : undefined} />
       </div>
+      <div className="btn-row"><button className="btn" onClick={() => setDoc('invoice')}>Invoice</button><button className="btn" onClick={() => setDoc('statement')}>Statement</button></div>
+      {doc && <FeeDocModal kind={doc} title={doc === 'invoice' ? 'Invoice' : 'Statement of account'} s={s} terms={me.settings.terms} term={me.term} onClose={() => setDoc(null)}
+        path={({ term }) => doc === 'invoice' ? `/portal/learners/${id}/invoice?term=${encodeURIComponent(term)}` : `/portal/learners/${id}/statement`} />}
       {f.plans.length > 0 && <Card title="Payment plan"><p>Instalments of {money(s, f.plans[0].instalment)}; next due {fmtDate(f.plans[0].nextDue)}.</p></Card>}
       <Card title="Payments" pad={false}>
         {!f.payments.length ? <Empty>No payments yet.</Empty> : (

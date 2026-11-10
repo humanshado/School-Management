@@ -1,6 +1,7 @@
 /** Report cards (staff screens and the parent portal), with GPA. */
 import type { Row, Store } from './db.ts';
 import { band, fullName, termMarks, termInfo, type Calc } from './engine.ts';
+import { gpaHistory, gpaOf } from './analytics.ts';
 
 export function buildReportCard(store: Store, st: Row, term: string, c: Calc) {
   const s = store.settings();
@@ -29,5 +30,6 @@ export function buildReportCard(store: Store, st: Row, term: string, c: Calc) {
     attendance: { present: x.present, taken: x.taken, absent: x.absent, late: x.late, att: x.att },
     teacherComment: cm?.teacherComment ?? '', principalComment: cm?.principalComment ?? '',
     nextTermStarts: nextTerm?.start ?? null,
+    gpa: gpaOf(s, x.marks), gpaCumulative: gpaHistory(store, st.id, term).cumulative,
   };
 }

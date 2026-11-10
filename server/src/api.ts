@@ -1,12 +1,13 @@
 import { Router, type Request } from 'express';
 import { readFileSync } from 'node:fs';
-import { SAMPLE_FILE, TABLES, type Row, type Store, type TableName } from './db.ts';
+import { loadSample, SAMPLE_FILE, TABLES, type Row, type Store, type TableName } from './db.ts';
 import {
   appToday, band, dayNum, fullName, holidayOn, isActive, isoOf, isSchoolDay, recalc, termInfo, termMarks, weekday,
   type Calc, type StudentStats,
 } from './engine.ts';
 import type { Settings } from './types.ts';
 import { buildReportCard } from './reports.ts';
+import { gpaOf } from './analytics.ts';
 import { deleteFilesOf } from './files.ts';
 import { activityCsv, activityUsers, CATEGORIES, describeDiff, diff, logActivity, queryActivity, type Category, type Entry } from './activity.ts';
 
@@ -130,7 +131,7 @@ export function buildApi(store: Store) {
   }));
   api.post('/admin/load-sample', h((req) => {
     need(req, 'admin');
-    store.load(JSON.parse(readFileSync(SAMPLE_FILE, 'utf8')));
+    loadSample(store);
     log(req, 'data', 'data.sample', 'Replaced all school data with the sample school');
   }));
 
@@ -428,7 +429,7 @@ export function buildApi(store: Store) {
     return {
       className, term, subjects: s.subjects, classAvg, canEdit: mayTeach(req, className),
       assessmentCounts: Object.fromEntries(counts.map((r) => [r.subject, r.n])),
-      learners: learners.map((x) => ({ id: x.id, name: x.name, marks: x.marks, avg: x.avg, chg: x.chg, pos: x.pos, att: x.att, flags: x.flags })),
+      learners: learners.map((x) => ({ id: x.id, name: x.name, marks: x.marks, avg: x.avg, chg: x.chg, pos: x.pos, att: x.att, flags: x.flags, gpa: gpaOf(S(), x.marks) })),
     };
   }));
 

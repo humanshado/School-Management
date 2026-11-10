@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Settings } from './types.ts';
+import { addSampleExtras } from './sampleExtras.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const DATA_DIR = resolve(here, '../data');
@@ -201,8 +202,14 @@ function clean(t: string, col: string, v: any) {
 export function openStore(file = process.env.DB_PATH ?? resolve(DATA_DIR, 'school.db')) {
   const store = new Store(file);
   if (store.isEmpty && existsSync(SAMPLE_FILE)) {
-    store.load(JSON.parse(readFileSync(SAMPLE_FILE, 'utf8')));
+    loadSample(store);
     console.log(`Loaded sample data from ${SAMPLE_FILE}`);
   }
   return store;
+}
+
+/** The sample school: the workbook's data plus demo data for the newer modules. */
+export function loadSample(store: Store, file = SAMPLE_FILE) {
+  store.load(JSON.parse(readFileSync(file, 'utf8')));
+  if (file === SAMPLE_FILE) addSampleExtras(store);
 }

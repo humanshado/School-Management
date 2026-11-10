@@ -12,6 +12,7 @@ import { familyNotices } from './learning.ts';
 import { buildReportCard } from './reports.ts';
 import { DAYS, periodsOf } from './schedule.ts';
 import { loanInfo } from './resources.ts';
+import { invoiceFor, statementFor } from './analytics.ts';
 
 export function buildPortalApi(store: Store) {
   const r = Router();
@@ -123,6 +124,18 @@ export function buildPortalApi(store: Store) {
         .map((l) => { const x = loanInfo(store, l, today); return { title: store.get('books', l.bookId)?.title ?? '', borrowedOn: l.borrowedOn, dueOn: l.dueOn, overdue: x.overdue, daysLate: x.daysLate, fine: x.fine }; }),
       transport: route && stop ? { route: route.name, vehicle: route.vehicle, driver: route.driver, driverPhone: route.driverPhone, stop: stop.name, amTime: stop.amTime, pmTime: stop.pmTime } : null,
     };
+  }));
+
+  r.get('/learners/:id/invoice', h((req) => {
+    const st = mine(req, +req.params.id);
+    const s = store.settings();
+    if (!s.useFees) throw notFound('Invoice');
+    return invoiceFor(store, st, s.terms.some((t) => t.name === req.query.term) ? str(req.query.term) : s.currentTerm);
+  }));
+  r.get('/learners/:id/statement', h((req) => {
+    const st = mine(req, +req.params.id);
+    if (!store.settings().useFees) throw notFound('Statement');
+    return statementFor(store, st);
   }));
 
   r.get('/notices', h((req) => {

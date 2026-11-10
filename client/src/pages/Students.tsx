@@ -5,6 +5,7 @@ import { PaymentModal, PlanModal, ReceiptModal } from '../components/Payments';
 import ActivityList from '../components/ActivityList';
 import Files from '../components/Files';
 import { UserModal } from '../components/Users';
+import { FeeDocModal } from '../components/Invoice';
 import { BarChart, Card, Empty, ErrorBox, Field, Flags, Loading, MessagesModal, PageHead, Select, useAction, useApi, useMeta, usePerms } from '../components/ui';
 import { fmtDate, fmtShort, markClass, money, num1, pct, signed } from '../format';
 import type { Student, StudentStats } from '../types';
@@ -149,6 +150,7 @@ function Profile({ id, onChanged, onDeleted }: { id: number; onChanged: () => vo
   const [receipt, setReceipt] = useState<number | null>(null);
   const [mail, setMail] = useState(false);
   const [parentLogin, setParentLogin] = useState(false);
+  const [doc, setDoc] = useState<'invoice' | 'statement' | null>(null);
   const docs = useApi<any[]>(perms.admin ? `/files?ownerType=student&ownerId=${id}` : null);
   const { run } = useAction();
   const tab = (tabPick === 'fees' && !perms.showFees) || (tabPick === 'history' && !perms.admin) ? 'glance' : tabPick;
@@ -265,6 +267,7 @@ function Profile({ id, onChanged, onDeleted }: { id: number; onChanged: () => vo
       {tab === 'fees' && perms.showFees && (
         <div className="grid g2">
           <Card title="Payments" pad={false} actions={<button className="btn sm primary" onClick={() => setPay({ studentId: st.id, paidBy: st.guardianName ? `Guardian · ${st.guardianName.split(' ')[0]}` : '' })}>Record payment</button>}>
+            <div className="btn-row pad-x" style={{ margin: 0 }}><button className="btn sm" onClick={() => setDoc('invoice')}>Invoice</button><button className="btn sm" onClick={() => setDoc('statement')}>Statement</button></div>
             <div className="fee-sum muted small pad-x">{meta.term}: billed {money(s, x.billed)} · paid {money(s, x.paid)} · balance <b>{money(s, x.balance)}</b></div>
             {data.payments.length === 0 ? <Empty>No payments yet.</Empty> : (
               <table className="table compact hover">
@@ -296,6 +299,9 @@ function Profile({ id, onChanged, onDeleted }: { id: number; onChanged: () => vo
       {pay && <PaymentModal initial={pay} onClose={() => setPay(null)} onSaved={(p) => { setPay(null); refresh(); if (!pay.id) setReceipt(p.id); }} />}
       {plan && <PlanModal initial={plan} onClose={() => setPlan(null)} onSaved={() => { setPlan(null); refresh(); }} />}
       {receipt && <ReceiptModal id={receipt} onClose={() => setReceipt(null)} />}
+      {doc && <FeeDocModal kind={doc} title={doc === 'invoice' ? `Invoice · ${st.firstName} ${st.lastName}` : `Statement · ${st.firstName} ${st.lastName}`} s={s}
+        terms={s.terms.map((t) => t.name)} term={meta.term} onClose={() => setDoc(null)}
+        path={({ term }) => doc === 'invoice' ? `/fees/invoices?learner=${st.id}&term=${encodeURIComponent(term)}` : `/fees/statement/${st.id}`} />}
       {parentLogin && <UserModal u={{
         role: 'parent', name: st.guardianName || '', learnerIds: [st.id], password: '',
         username: (st.guardianEmail?.split('@')[0] || st.guardianName || '').toLowerCase().replace(/[^a-z0-9._-]+/g, '.').replace(/^\.|\.$/g, ''),
