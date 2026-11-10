@@ -1,0 +1,21 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --experimental-strip-types --disable-warning=ExperimentalWarning --watch src/index.ts",
+    "start": "node --experimental-strip-types --disable-warning=ExperimentalWarning src/index.ts --serve-client",
+    "seed": "node --experimental-strip-types --disable-warning=ExperimentalWarning src/seed.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test test/*.test.ts"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  }
+}
