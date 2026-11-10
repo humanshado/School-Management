@@ -11,6 +11,7 @@ import { forbidden, h, need, notFound, str } from './kit.ts';
 import { familyNotices } from './learning.ts';
 import { buildReportCard } from './reports.ts';
 import { DAYS, periodsOf } from './schedule.ts';
+import { loanInfo } from './resources.ts';
 
 export function buildPortalApi(store: Store) {
   const r = Router();
@@ -108,6 +109,19 @@ export function buildPortalApi(store: Store) {
       days: DAYS, periods: periodsOf(s),
       lessons: store.all('timetable', 'WHERE className = ?', st.className).map((l) => ({ day: l.day, period: l.period, subject: l.subject, teacher: l.teacher, room: l.room })),
       exams: store.all('exams', 'WHERE className = ? AND date >= ? ORDER BY date, start', st.className, today).map((e) => ({ id: e.id, subject: e.subject, title: e.title, date: e.date, start: e.start, end: e.end, room: e.room })),
+    };
+  }));
+
+  /** Library books out, and the school bus. */
+  r.get('/learners/:id/extras', h((req) => {
+    const st = mine(req, +req.params.id);
+    const today = appToday(store.settings());
+    const rider = store.all('riders', 'WHERE learnerId = ?', st.id)[0];
+    const route = rider ? store.get('routes', rider.routeId) : null, stop = rider ? store.get('stops', rider.stopId) : null;
+    return {
+      loans: store.all('loans', "WHERE borrowerType = 'learner' AND borrowerId = ? AND returnedOn IS NULL ORDER BY dueOn", st.id)
+        .map((l) => { const x = loanInfo(store, l, today); return { title: store.get('books', l.bookId)?.title ?? '', borrowedOn: l.borrowedOn, dueOn: l.dueOn, overdue: x.overdue, daysLate: x.daysLate, fine: x.fine }; }),
+      transport: route && stop ? { route: route.name, vehicle: route.vehicle, driver: route.driver, driverPhone: route.driverPhone, stop: stop.name, amTime: stop.amTime, pmTime: stop.pmTime } : null,
     };
   }));
 

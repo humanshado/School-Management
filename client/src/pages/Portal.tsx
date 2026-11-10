@@ -82,6 +82,7 @@ function LearnerTabs({ id, me, tab, go }: { id: number; me: Me; tab: Tab; go: (t
           <table className="table compact"><thead><tr><th>Subject</th><th className="num">Mark</th><th className="num">Class avg</th></tr></thead>
             <tbody>{g.subjects.map((x: any) => <tr key={x.subject}><td>{x.subject}</td><td className="num"><b>{x.mark ?? '–'}</b></td><td className="num muted">{x.classAvg ?? '–'}</td></tr>)}</tbody></table>
         </Card>
+        <Extras id={id} />
         <Card title={`Class teacher`}><p>{data.classTeacher || '–'}</p><p className="muted small">Questions? Contact the school office: {me.school.contact}</p></Card>
       </div>
     </>
@@ -211,5 +212,19 @@ function ScheduleTab({ id }: { id: number }) {
         )}
       </Card>
     </>
+  );
+}
+
+function Extras({ id }: { id: number }) {
+  const { data } = useApi<any>(`/portal/learners/${id}/extras`);
+  if (!data || (!data.loans.length && !data.transport)) return null;
+  return (
+    <Card title="Library & school bus">
+      {data.transport && <p>🚌 <b>{data.transport.route}</b> · stop <b>{data.transport.stop}</b> · pick-up {data.transport.amTime ?? '–'}, drop-off {data.transport.pmTime ?? '–'}
+        {data.transport.driver && <span className="muted small"><br />Driver {data.transport.driver}{data.transport.driverPhone ? ` · ${data.transport.driverPhone}` : ''}{data.transport.vehicle ? ` · ${data.transport.vehicle}` : ''}</span>}</p>}
+      {data.loans.length > 0 && <ul className="events">{data.loans.map((l: any, i: number) => (
+        <li key={i}><span className="ev-date">{fmtShort(l.dueOn)}</span><span className="ev-label">📚 {l.title}</span><span className={l.overdue ? 'bad-text small' : 'muted small'}>{l.overdue ? `${l.daysLate} days late` : 'due'}</span></li>
+      ))}</ul>}
+    </Card>
   );
 }

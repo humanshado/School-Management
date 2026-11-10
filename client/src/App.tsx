@@ -11,6 +11,8 @@ import Notices from './pages/Notices';
 import Timetable from './pages/Timetable';
 import Admissions from './pages/Admissions';
 import Apply from './pages/Apply';
+import Library from './pages/Library';
+import Transport from './pages/Transport';
 import Today from './pages/Today';
 import Students from './pages/Students';
 import Classes from './pages/Classes';
@@ -26,7 +28,7 @@ import Admin from './pages/Admin';
 import Activity from './pages/Activity';
 
 type NavItem = { to: string; label: string; icon: string; status: (m: Meta) => string; alert?: (m: Meta) => boolean; allow?: (p: Perms) => boolean };
-const teach = (p: Perms) => p.teach, fees = (p: Perms) => p.fees, admin = (p: Perms) => p.admin, admissions = (p: Perms) => p.admissions;
+const teach = (p: Perms) => p.teach, fees = (p: Perms) => p.fees, admin = (p: Perms) => p.admin, admissions = (p: Perms) => p.admissions, library = (p: Perms) => p.library, transport = (p: Perms) => p.transport;
 
 const NAV: { group: string; items: NavItem[] }[] = [
   { group: 'Daily', items: [
@@ -46,6 +48,10 @@ const NAV: { group: string; items: NavItem[] }[] = [
     { to: '/students', label: 'Students', icon: '☺', status: (m) => plural(m.kpis.learners, 'learner') },
     { to: '/classes', label: 'Classes', icon: '▣', status: (m) => plural(m.kpis.classes, 'class', 'classes') },
     { to: '/teachers', label: 'Teachers', icon: '♟', status: (m) => plural(m.teachers.length, 'teacher') },
+  ] },
+  { group: 'Resources', items: [
+    { to: '/library', label: 'Library', icon: '📚', allow: library, status: () => 'books · loans' },
+    { to: '/transport', label: 'Transport', icon: '🚌', allow: transport, status: () => 'routes · riders · trips' },
   ] },
   { group: 'School', items: [
     { to: '/notices', label: 'Notice board', icon: '📌', status: () => 'staff · families · classes' },
@@ -153,6 +159,8 @@ function Shell({ onLogout }: { onLogout: () => void }) {
               <Route path="/notices" element={<Notices />} />
               <Route path="/timetable" element={<Timetable />} />
               <Route path="/admissions" element={guard(p.admissions, <Admissions />)} />
+              <Route path="/library" element={guard(p.library, <Library />)} />
+              <Route path="/transport" element={guard(p.transport, <Transport />)} />
               <Route path="*" element={<Navigate to="/today" replace />} />
             </Routes>
           </main>

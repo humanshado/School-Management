@@ -201,6 +201,12 @@ button.tt-cell:hover { border-color: var(--primary); }
 .wide-row { grid-column: 1 / -1; }
 .hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
 
+/* ---------- transport ---------- */
+.stops { margin: 6px 0 10px; padding-left: 20px; }
+.stops li { margin: 3px 0; }
+.sheet-stop { margin-top: 14px; }
+.sheet-stop h4 { margin: 0 0 4px; }
+
 /* ---------- page head ---------- */
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
 .page-head h1 { font-size: 24px; }
