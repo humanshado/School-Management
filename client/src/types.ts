@@ -32,6 +32,12 @@ export interface Settings {
   holidays: { name: string; type: string; date: string }[];
   keyDates: { label: string; date: string }[];
   templates: Record<'absent' | 'risk' | 'report' | 'fees', Template>;
+  periods?: { name: string; start: string; end: string }[];
+  admissionsOpen?: boolean;
+  admissionsIntro?: string;
+  loanDays?: number;
+  finePerDay?: number;
+  payItems?: { name: string; kind: 'allowance' | 'deduction'; method: 'fixed' | 'percent'; amount: number }[];
 }
 
 export interface Kpis {

@@ -6,6 +6,7 @@ import { daysBetween, fmtDate, fmtDay, fmtShort, markClass, money, num1, pct, RO
 import type { FileDoc, Settings, User } from '../types';
 import { NoticeItem, type Notice } from './Notices';
 import { ReportCard, type RCData } from './ReportCards';
+import { WeekGrid } from './Timetable';
 
 interface Me {
   user: User; today: string; term: string; termStart: string | null; termEnd: string | null;
@@ -13,7 +14,7 @@ interface Me {
   settings: Pick<Settings, 'currencySymbol' | 'currencyDecimals' | 'useFees' | 'gradeBands' | 'subjects' | 'lateCountsPresent'> & { terms: string[] };
   learners: { id: number; name: string; firstName: string; className: string; learnerNo: string }[];
 }
-type Tab = 'overview' | 'report' | 'attendance' | 'homework' | 'fees' | 'notices';
+type Tab = 'overview' | 'report' | 'attendance' | 'homework' | 'timetable' | 'fees' | 'notices';
 
 /** Parents and students: their own learners only. */
 export default function Portal({ onLogout }: { onLogout: () => void }) {
@@ -25,7 +26,7 @@ export default function Portal({ onLogout }: { onLogout: () => void }) {
   if (!me) return <div className="boot"><Loading /></div>;
   const logout = async () => { await api.post('/auth/logout').catch(() => {}); onLogout(); };
   const learner = me.learners.find((l) => l.id === learnerId);
-  const tabs: [Tab, string][] = [['overview', 'Overview'], ['report', 'Report card'], ['attendance', 'Attendance'], ['homework', 'Homework'], ...(me.settings.useFees ? [['fees', 'Fees'] as [Tab, string]] : []), ['notices', 'Notices']];
+  const tabs: [Tab, string][] = [['overview', 'Overview'], ['report', 'Report card'], ['attendance', 'Attendance'], ['homework', 'Homework'], ['timetable', 'Timetable'], ...(me.settings.useFees ? [['fees', 'Fees'] as [Tab, string]] : []), ['notices', 'Notices']];
   return (
     <div className="portal">
       <header className="portal-bar">
@@ -46,7 +47,7 @@ export default function Portal({ onLogout }: { onLogout: () => void }) {
           <div className="tabs" role="tablist">
             {tabs.map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}
           </div>
-          {learnerId && (tab === 'notices' ? <Notices /> : tab === 'homework' ? <HomeworkTab id={learnerId} today={me.today} />
+          {learnerId && (tab === 'notices' ? <Notices /> : tab === 'timetable' ? <ScheduleTab id={learnerId} /> : tab === 'homework' ? <HomeworkTab id={learnerId} today={me.today} />
             : tab === 'report' ? <ReportTab id={learnerId} terms={me.settings.terms} term={me.term} />
             : <LearnerTabs key={learnerId} id={learnerId} me={me} tab={tab} go={setTab} />)}
         </>}
@@ -189,4 +190,26 @@ function Notices() {
   if (error) return <ErrorBox error={error} />;
   if (!data) return <Loading />;
   return !data.length ? <Card><Empty>No notices.</Empty></Card> : <div className="notices">{data.map((n) => <NoticeItem key={n.id} n={n} />)}</div>;
+}
+
+function ScheduleTab({ id }: { id: number }) {
+  const { data, error } = useApi<any>(`/portal/learners/${id}/schedule`);
+  if (error) return <ErrorBox error={error} />;
+  if (!data) return <Loading />;
+  return (
+    <>
+      <Card title="Upcoming exams" pad={false}>
+        {!data.exams.length ? <Empty>No exams scheduled.</Empty> : (
+          <table className="table compact"><tbody>{data.exams.map((e: any) => <tr key={e.id}><td><b>{fmtDay(e.date)}</b></td><td className="nowrap">{e.start}–{e.end}</td><td>{e.subject}{e.title ? <span className="muted"> · {e.title}</span> : ''}</td><td className="muted">{e.room}</td></tr>)}</tbody></table>
+        )}
+      </Card>
+      <Card title="Weekly timetable">
+        {!data.lessons.length ? <Empty>The timetable has not been published yet.</Empty> : (
+          <WeekGrid days={data.days} periods={data.periods} cell={(d, p) => data.lessons.filter((l: any) => l.day === d && l.period === p).map((l: any, i: number) => (
+            <div key={i} className="tt-lesson"><b>{l.subject}</b><small>{[l.teacher, l.room].filter(Boolean).join(' · ')}</small></div>
+          ))} />
+        )}
+      </Card>
+    </>
+  );
 }

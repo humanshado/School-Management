@@ -8,6 +8,9 @@ import Login from './pages/Login';
 import Portal from './pages/Portal';
 import Homework from './pages/Homework';
 import Notices from './pages/Notices';
+import Timetable from './pages/Timetable';
+import Admissions from './pages/Admissions';
+import Apply from './pages/Apply';
 import Today from './pages/Today';
 import Students from './pages/Students';
 import Classes from './pages/Classes';
@@ -23,7 +26,7 @@ import Admin from './pages/Admin';
 import Activity from './pages/Activity';
 
 type NavItem = { to: string; label: string; icon: string; status: (m: Meta) => string; alert?: (m: Meta) => boolean; allow?: (p: Perms) => boolean };
-const teach = (p: Perms) => p.teach, fees = (p: Perms) => p.fees, admin = (p: Perms) => p.admin;
+const teach = (p: Perms) => p.teach, fees = (p: Perms) => p.fees, admin = (p: Perms) => p.admin, admissions = (p: Perms) => p.admissions;
 
 const NAV: { group: string; items: NavItem[] }[] = [
   { group: 'Daily', items: [
@@ -33,11 +36,13 @@ const NAV: { group: string; items: NavItem[] }[] = [
   ] },
   { group: 'Learning', items: [
     { to: '/gradebook', label: 'Gradebook', icon: '✎', allow: teach, status: (m) => `${m.term} · week ${m.kpis.week}` },
+    { to: '/timetable', label: 'Timetable', icon: '▦', status: () => 'lessons · cover · exams' },
     { to: '/homework', label: 'Homework', icon: '✐', allow: teach, status: () => 'homework · materials' },
     { to: '/report-cards', label: 'Report Cards', icon: '▤', allow: teach, status: (m) => `${m.kpis.ready} ready to print` },
     { to: '/dashboard', label: 'Dashboard', icon: '▦', status: () => 'registers · classes' },
   ] },
   { group: 'People', items: [
+    { to: '/admissions', label: 'Admissions', icon: '✚', allow: admissions, status: (m) => m.settings.admissionsOpen ? 'applications open' : 'applications closed' },
     { to: '/students', label: 'Students', icon: '☺', status: (m) => plural(m.kpis.learners, 'learner') },
     { to: '/classes', label: 'Classes', icon: '▣', status: (m) => plural(m.kpis.classes, 'class', 'classes') },
     { to: '/teachers', label: 'Teachers', icon: '♟', status: (m) => plural(m.teachers.length, 'teacher') },
@@ -51,8 +56,14 @@ const NAV: { group: string; items: NavItem[] }[] = [
   ] },
 ];
 
-/** Shows setup / login until there is a session, then the app. */
+/** Shows setup / login until there is a session, then the app. The online application form needs no login. */
 export default function App() {
+  const loc = useLocation();
+  if (loc.pathname === '/apply') return <Apply />;
+  return <Gate />;
+}
+
+function Gate() {
   const [state, setState] = useState<{ needsSetup: boolean; user: User | null } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [notice, setNotice] = useState<string>();
@@ -140,6 +151,8 @@ function Shell({ onLogout }: { onLogout: () => void }) {
               <Route path="/activity" element={guard(p.admin, <Activity />)} />
               <Route path="/homework" element={guard(p.teach, <Homework />)} />
               <Route path="/notices" element={<Notices />} />
+              <Route path="/timetable" element={<Timetable />} />
+              <Route path="/admissions" element={guard(p.admissions, <Admissions />)} />
               <Route path="*" element={<Navigate to="/today" replace />} />
             </Routes>
           </main>

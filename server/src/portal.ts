@@ -10,6 +10,7 @@ import { filesOf } from './files.ts';
 import { forbidden, h, need, notFound, str } from './kit.ts';
 import { familyNotices } from './learning.ts';
 import { buildReportCard } from './reports.ts';
+import { DAYS, periodsOf } from './schedule.ts';
 
 export function buildPortalApi(store: Store) {
   const r = Router();
@@ -97,6 +98,16 @@ export function buildPortalApi(store: Store) {
     return {
       homework: hw.map((x) => ({ ...x, files: hf.filter((f) => f.ownerId === x.id) })),
       materials: mats.map((x) => ({ ...x, files: mf.filter((f) => f.ownerId === x.id) })),
+    };
+  }));
+
+  r.get('/learners/:id/schedule', h((req) => {
+    const st = mine(req, +req.params.id);
+    const s = store.settings(), today = appToday(s);
+    return {
+      days: DAYS, periods: periodsOf(s),
+      lessons: store.all('timetable', 'WHERE className = ?', st.className).map((l) => ({ day: l.day, period: l.period, subject: l.subject, teacher: l.teacher, room: l.room })),
+      exams: store.all('exams', 'WHERE className = ? AND date >= ? ORDER BY date, start', st.className, today).map((e) => ({ id: e.id, subject: e.subject, title: e.title, date: e.date, start: e.start, end: e.end, room: e.room })),
     };
   }));
 

@@ -32,4 +32,13 @@ export interface Settings {
   holidays: { name: string; type: string; date: string }[];
   keyDates: { label: string; date: string }[];
   templates: Record<'absent' | 'risk' | 'report' | 'fees', Template>;
+  /** the school day's periods (timetable); a default day is used when empty */
+  periods?: { name: string; start: string; end: string }[];
+  admissionsOpen?: boolean;
+  admissionsIntro?: string;
+  /** library: loan length in days and the fine per overdue day (0 = no fines) */
+  loanDays?: number;
+  finePerDay?: number;
+  /** payroll: allowances and deductions applied to every member of staff unless their record overrides them */
+  payItems?: { name: string; kind: 'allowance' | 'deduction'; method: 'fixed' | 'percent'; amount: number }[];
 }

@@ -175,6 +175,32 @@ input[type="checkbox"] { width: auto; min-height: 0; }
 .portal-tools select { width: auto; }
 .portal-foot { text-align: center; padding: 16px; }
 
+/* ---------- timetable, admissions, apply ---------- */
+.tt { border-collapse: separate; border-spacing: 4px; width: 100%; min-width: 640px; table-layout: fixed; }
+.tt thead th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding: 4px; }
+.tt tbody th { width: 84px; text-align: left; font-weight: 600; font-size: 12.5px; vertical-align: top; padding: 6px 4px; }
+.tt tbody th small { display: block; color: var(--muted); font-weight: 400; font-size: 11px; }
+.tt td { padding: 0; vertical-align: top; }
+.tt-cell { display: flex; flex-direction: column; gap: 2px; width: 100%; min-height: 52px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-2); padding: 5px 7px; text-align: left; font: inherit; color: inherit; }
+button.tt-cell { cursor: pointer; }
+button.tt-cell:hover { border-color: var(--primary); }
+.tt-cell.empty { background: transparent; border-style: dashed; align-items: center; justify-content: center; color: var(--muted); }
+.tt-lesson b { font-size: 13px; display: block; }
+.tt-lesson small { color: var(--muted); font-size: 11px; }
+.table tr.needs td { background: var(--warn-bg); }
+.table tr.clickable { cursor: pointer; }
+.table tr.clickable:hover { background: var(--surface-2); }
+.stage-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.stage-bar button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 4px 12px; cursor: pointer; font-size: 13px; color: var(--muted); }
+.stage-bar button b { color: var(--ink); margin-left: 4px; }
+.stage-bar button.on { background: var(--primary); border-color: var(--primary); color: var(--primary-ink); }
+.stage-bar button.on b { color: var(--primary-ink); }
+.apply-page { min-height: 100%; background: var(--bg); }
+.apply-main { max-width: 760px; margin: 0 auto; padding: 20px 16px 48px; }
+.apply-main h1 { font-size: 24px; margin-bottom: 4px; }
+.wide-row { grid-column: 1 / -1; }
+.hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+
 /* ---------- page head ---------- */
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
 .page-head h1 { font-size: 24px; }

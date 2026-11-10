@@ -23,6 +23,11 @@ export const CATEGORIES = {
   reports: 'Report cards',
   fees: 'Fees',
   settings: 'Settings',
+  timetable: 'Timetable & exams',
+  admissions: 'Admissions',
+  library: 'Library',
+  transport: 'Transport',
+  hr: 'Staff & payroll',
   data: 'Backups & data',
 } as const;
 export type Category = keyof typeof CATEGORIES;
