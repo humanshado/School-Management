@@ -41,9 +41,13 @@ export interface Kpis {
   receiptsToday: number; receiptsTodayAmount: number; week: number; weeks: number; schoolDays: number; ready: number;
 }
 
-export type Role = 'admin' | 'teacher' | 'bursar';
+export type Role = 'admin' | 'teacher' | 'bursar' | 'librarian' | 'parent' | 'student';
 export interface User { id: number; username: string; name: string; role: Role; teacherName: string | null; active: number }
-export interface Perms { role: Role; admin: boolean; teach: boolean; fees: boolean; classes: string[] | null }
+export interface Perms {
+  role: Role; admin: boolean; staff: boolean; teach: boolean; fees: boolean; library: boolean; transport: boolean;
+  hr: boolean; admissions: boolean; portal: boolean; classes: string[] | null; learners: number[];
+}
+export interface FileDoc { id: number; ownerType: string; ownerId: number; label: string | null; filename: string; mime: string; size: number; uploadedBy: string; at: string }
 
 export interface Meta {
   user: User; perms: Perms;

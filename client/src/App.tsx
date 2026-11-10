@@ -5,6 +5,9 @@ import { ErrorBox, Field, Loading, MetaContext, Modal, useAction } from './compo
 import { ROLE_LABEL, fmtDay, plural } from './format';
 import type { Meta, Perms, User } from './types';
 import Login from './pages/Login';
+import Portal from './pages/Portal';
+import Homework from './pages/Homework';
+import Notices from './pages/Notices';
 import Today from './pages/Today';
 import Students from './pages/Students';
 import Classes from './pages/Classes';
@@ -30,6 +33,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
   ] },
   { group: 'Learning', items: [
     { to: '/gradebook', label: 'Gradebook', icon: '✎', allow: teach, status: (m) => `${m.term} · week ${m.kpis.week}` },
+    { to: '/homework', label: 'Homework', icon: '✐', allow: teach, status: () => 'homework · materials' },
     { to: '/report-cards', label: 'Report Cards', icon: '▤', allow: teach, status: (m) => `${m.kpis.ready} ready to print` },
     { to: '/dashboard', label: 'Dashboard', icon: '▦', status: () => 'registers · classes' },
   ] },
@@ -39,6 +43,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
     { to: '/teachers', label: 'Teachers', icon: '♟', status: (m) => plural(m.teachers.length, 'teacher') },
   ] },
   { group: 'School', items: [
+    { to: '/notices', label: 'Notice board', icon: '📌', status: () => 'staff · families · classes' },
     { to: '/calendar', label: 'School Calendar', icon: '▥', status: () => 'terms · holidays · key dates' },
     { to: '/communications', label: 'Communications', icon: '✉', allow: admin, status: () => 'e-mail templates' },
     { to: '/activity', label: 'Activity', icon: '◷', allow: admin, status: () => 'who changed what' },
@@ -63,6 +68,8 @@ export default function App() {
   if (err && !state) return <div className="boot"><ErrorBox error={err} retry={check} /></div>;
   if (!state) return <div className="boot"><Loading /></div>;
   if (!state.user) return <Login setup={state.needsSetup} notice={notice} onDone={(user) => { setNotice(undefined); setState({ needsSetup: false, user }); }} />;
+  const out = () => { setNotice(undefined); setState({ needsSetup: false, user: null }); };
+  if (state.user.role === 'parent' || state.user.role === 'student') return <Portal key={state.user.id} onLogout={out} />;
   return <Shell key={state.user.id} onLogout={() => { setNotice(undefined); setState({ needsSetup: false, user: null }); }} />;
 }
 
@@ -131,6 +138,8 @@ function Shell({ onLogout }: { onLogout: () => void }) {
               <Route path="/communications" element={guard(p.admin, <Communications />)} />
               <Route path="/admin" element={guard(p.admin, <Admin />)} />
               <Route path="/activity" element={guard(p.admin, <Activity />)} />
+              <Route path="/homework" element={guard(p.teach, <Homework />)} />
+              <Route path="/notices" element={<Notices />} />
               <Route path="*" element={<Navigate to="/today" replace />} />
             </Routes>
           </main>

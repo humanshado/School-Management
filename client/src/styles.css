@@ -136,6 +136,45 @@ input[type="checkbox"] { width: auto; min-height: 0; }
 .act-json { font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 280px; overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px; margin: 0; }
 .act-more { padding: 12px; text-align: center; }
 
+/* ---------- files, homework, notices, pickers ---------- */
+.files { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 2px 0; border-radius: 8px; }
+.files.drag { outline: 2px dashed var(--accent); outline-offset: 4px; }
+.file-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--surface-2); border-radius: 7px; padding: 2px 4px 2px 9px; font-size: 13px; max-width: 100%; }
+.file-chip a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hw-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; margin-bottom: 16px; }
+.hw-card .card-head h2 { text-transform: none; letter-spacing: 0; font-size: 15px; color: var(--ink); display: flex; gap: 6px; align-items: center; }
+.hw-details { margin: 0 0 10px; }
+.notices { display: grid; gap: 12px; max-width: 860px; }
+.notices.compact { gap: 8px; }
+.notice { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 16px; box-shadow: var(--shadow); }
+.notices.compact .notice { box-shadow: none; padding: 8px 10px; }
+.notice.pinned { border-left: 4px solid var(--accent); }
+.notice.expired { opacity: 0.6; }
+.notice header { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.notice h3 { font-size: 15px; }
+.notice p { margin: 6px 0; }
+.picker { display: flex; flex-direction: column; gap: 6px; position: relative; }
+.picker-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.picker-chips .icon-btn { font-size: 14px; padding: 0 2px; }
+.picker-list { list-style: none; margin: 0; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); max-height: 220px; overflow-y: auto; }
+.picker-list button { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+.picker-list button:hover { background: var(--surface-2); }
+
+/* ---------- portal ---------- */
+.portal { min-height: 100%; display: flex; flex-direction: column; }
+.portal-bar { background: var(--plum); color: #fff; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 20px; flex-wrap: wrap; }
+.portal-bar .brand { padding: 0; }
+.portal-bar .brand small { color: #a898b3; }
+.portal-user { display: flex; gap: 10px; align-items: center; font-size: 13px; }
+.portal-user small { color: #a898b3; }
+.portal-main { width: 100%; max-width: 1100px; margin: 0 auto; padding: 18px 16px 48px; display: flex; flex-direction: column; gap: 14px; flex: 1; }
+.portal-head { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.portal-head h1 { font-size: 24px; }
+.portal-head select { width: auto; font-size: 16px; font-weight: 600; }
+.portal-tools { display: flex; gap: 8px; }
+.portal-tools select { width: auto; }
+.portal-foot { text-align: center; padding: 16px; }
+
 /* ---------- page head ---------- */
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
 .page-head h1 { font-size: 24px; }

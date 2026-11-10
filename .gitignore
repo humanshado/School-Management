@@ -4,3 +4,4 @@ server/data/*.db
 server/data/*.db-*
 .DS_Store
 *.log
+server/data/uploads/

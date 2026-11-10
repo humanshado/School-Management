@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { PaymentModal, PlanModal, ReceiptModal } from '../components/Payments';
 import ActivityList from '../components/ActivityList';
+import Files from '../components/Files';
+import { UserModal } from '../components/Users';
 import { BarChart, Card, Empty, ErrorBox, Field, Flags, Loading, MessagesModal, PageHead, Select, useAction, useApi, useMeta, usePerms } from '../components/ui';
 import { fmtDate, fmtShort, markClass, money, num1, pct, signed } from '../format';
 import type { Student, StudentStats } from '../types';
@@ -146,6 +148,8 @@ function Profile({ id, onChanged, onDeleted }: { id: number; onChanged: () => vo
   const [plan, setPlan] = useState<any>(null);
   const [receipt, setReceipt] = useState<number | null>(null);
   const [mail, setMail] = useState(false);
+  const [parentLogin, setParentLogin] = useState(false);
+  const docs = useApi<any[]>(perms.admin ? `/files?ownerType=student&ownerId=${id}` : null);
   const { run } = useAction();
   const tab = (tabPick === 'fees' && !perms.showFees) || (tabPick === 'history' && !perms.admin) ? 'glance' : tabPick;
   useEffect(() => { try { localStorage.setItem('student.tab', tabPick); } catch { /* ignore */ } }, [tabPick]);
@@ -175,6 +179,7 @@ function Profile({ id, onChanged, onDeleted }: { id: number; onChanged: () => vo
           <div className="profile-actions">
             {perms.admin && <button className="btn" onClick={() => setEditing(true)}>Edit</button>}
             {x.active && <button className="btn" onClick={() => setMail(true)}>E-mail guardian</button>}
+            {perms.admin && <button className="btn" onClick={() => setParentLogin(true)} title="Give the guardian a login to the family portal">Parent login</button>}
             {perms.teach && <Link className="btn" to={`/report-cards?learner=${st.id}&class=${encodeURIComponent(st.className)}`}>Report card</Link>}
           </div>
         </div>
@@ -234,6 +239,12 @@ function Profile({ id, onChanged, onDeleted }: { id: number; onChanged: () => vo
         </Card>
       )}
 
+      {tab === 'details' && perms.admin && (
+        <Card title="Documents" actions={<span className="muted small">Birth certificate, previous reports, medical forms… (admins only)</span>}>
+          <Files ownerType="student" ownerId={st.id} files={docs.data ?? []} editable onChange={docs.reload} />
+        </Card>
+      )}
+
       {tab === 'attendance' && (
         <Card title={`Absences and lates · ${meta.term}`} pad={false}>
           {data.absences.length === 0 ? <Empty>Present every day this term.</Empty> : (
@@ -285,6 +296,10 @@ function Profile({ id, onChanged, onDeleted }: { id: number; onChanged: () => vo
       {pay && <PaymentModal initial={pay} onClose={() => setPay(null)} onSaved={(p) => { setPay(null); refresh(); if (!pay.id) setReceipt(p.id); }} />}
       {plan && <PlanModal initial={plan} onClose={() => setPlan(null)} onSaved={() => { setPlan(null); refresh(); }} />}
       {receipt && <ReceiptModal id={receipt} onClose={() => setReceipt(null)} />}
+      {parentLogin && <UserModal u={{
+        role: 'parent', name: st.guardianName || '', learnerIds: [st.id], password: '',
+        username: (st.guardianEmail?.split('@')[0] || st.guardianName || '').toLowerCase().replace(/[^a-z0-9._-]+/g, '.').replace(/^\.|\.$/g, ''),
+      }} onClose={() => setParentLogin(false)} onSaved={() => setParentLogin(false)} />}
       {mail && <MessagesModal kind="risk" learnerIds={[st.id]} title={`E-mail ${st.guardianName || 'guardian'}`} onClose={() => setMail(false)} />}
     </>
   );

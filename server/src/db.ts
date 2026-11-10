@@ -21,12 +21,48 @@ export const TABLES = {
   comments: ['learnerId', 'term', 'teacherComment', 'principalComment'],
   payments: ['studentId', 'receiptNo', 'date', 'term', 'amount', 'method', 'reference', 'paidBy', 'note'],
   paymentPlans: ['studentId', 'term', 'agreedOn', 'instalment', 'nextDue', 'note'],
+  // ---- documents (files on disk, see files.ts)
+  documents: ['ownerType', 'ownerId', 'label', 'filename', 'mime', 'size', 'storedAs', 'uploadedBy', 'at'],
+  // ---- learning: homework, study materials, notices
+  homework: ['className', 'subject', 'title', 'details', 'setOn', 'dueOn', 'postedBy', 'at'],
+  materials: ['className', 'subject', 'title', 'details', 'link', 'postedBy', 'at'],
+  announcements: ['title', 'body', 'audience', 'pinned', 'expires', 'postedBy', 'postedById', 'at'],
+  // ---- timetable, cover, exams
+  timetable: ['className', 'day', 'period', 'subject', 'teacher', 'room'],
+  covers: ['date', 'timetableId', 'absentTeacher', 'substitute', 'notes', 'arrangedBy'],
+  exams: ['term', 'className', 'subject', 'title', 'date', 'start', 'end', 'room', 'invigilator', 'notes'],
+  // ---- admissions
+  applications: ['ref', 'status', 'firstName', 'lastName', 'dob', 'gender', 'gradeApplying', 'guardianName', 'relationship',
+    'guardianPhone', 'guardianEmail', 'address', 'previousSchool', 'notes', 'submittedAt', 'updatedAt', 'interviewAt',
+    'decisionNotes', 'studentId', 'token'],
+  // ---- library
+  books: ['title', 'author', 'isbn', 'category', 'copies', 'shelf', 'notes'],
+  loans: ['bookId', 'borrowerType', 'borrowerId', 'borrowerName', 'borrowedOn', 'dueOn', 'returnedOn', 'issuedBy', 'notes'],
+  // ---- transport
+  routes: ['name', 'vehicle', 'driver', 'driverPhone', 'capacity', 'notes'],
+  stops: ['routeId', 'name', 'amTime', 'pmTime', 'seq'],
+  riders: ['learnerId', 'routeId', 'stopId', 'notes'],
+  trips: ['routeId', 'date', 'direction', 'departedAt', 'arrivedAt', 'driver', 'absent', 'notes', 'loggedBy'],
+  // ---- HR & payroll
+  staff: ['name', 'position', 'department', 'phone', 'email', 'hireDate', 'status', 'teacherName', 'bankName', 'bankAccount',
+    'baseSalary', 'payItems', 'notes'],
+  staffAttendance: ['staffId', 'date', 'mark', 'note'],
+  leave: ['staffId', 'type', 'fromDate', 'toDate', 'days', 'status', 'reason', 'decidedBy'],
+  payruns: ['month', 'status', 'notes', 'createdBy', 'createdAt', 'approvedBy', 'approvedAt', 'paidAt'],
+  payslips: ['payrunId', 'staffId', 'staffName', 'position', 'base', 'lines', 'gross', 'deductions', 'net'],
 } as const;
 export type TableName = keyof typeof TABLES;
 
 const NUMERIC_COLS = new Set(['present', 'enrolled', 'learnerId', 'weight', 'outOf', 'assessmentId', 'studentId', 'amount', 'instalment']);
-/** attendance.mark is a letter (P / A / L / E); marks.mark is a number */
-const isNumeric = (t: string, c: string) => c === 'id' || NUMERIC_COLS.has(c) || (t === 'marks' && c === 'mark');
+/** Number columns of the newer tables, per table (a column name can mean a number in one table and text in another). */
+const NUMERIC_BY_TABLE: Record<string, string[]> = {
+  marks: ['mark'], // attendance.mark is a letter (P / A / L / E); marks.mark is a number
+  documents: ['ownerId', 'size'], announcements: ['pinned', 'postedById'], timetable: ['day', 'period'], covers: ['timetableId'],
+  applications: ['studentId'], books: ['copies'], loans: ['bookId', 'borrowerId'], routes: ['capacity'], stops: ['routeId', 'seq'],
+  riders: ['routeId', 'stopId'], trips: ['routeId'], staff: ['baseSalary'], staffAttendance: ['staffId'], leave: ['staffId', 'days'],
+  payslips: ['payrunId', 'staffId', 'base', 'gross', 'deductions', 'net'],
+};
+const isNumeric = (t: string, c: string) => c === 'id' || NUMERIC_COLS.has(c) || !!NUMERIC_BY_TABLE[t]?.includes(c);
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY CHECK (id = 1), json TEXT NOT NULL);
@@ -38,6 +74,12 @@ CREATE INDEX IF NOT EXISTS ix_reg ON registers(className, date);
 CREATE INDEX IF NOT EXISTS ix_marks ON marks(assessmentId, learnerId);
 CREATE INDEX IF NOT EXISTS ix_ass ON assessments(term, className, subject);
 CREATE INDEX IF NOT EXISTS ix_pay ON payments(studentId, term);
+CREATE INDEX IF NOT EXISTS ix_docs ON documents(ownerType, ownerId);
+CREATE INDEX IF NOT EXISTS ix_hw ON homework(className, dueOn);
+CREATE INDEX IF NOT EXISTS ix_tt ON timetable(className, day, period);
+CREATE INDEX IF NOT EXISTS ix_loans ON loans(bookId, returnedOn);
+CREATE INDEX IF NOT EXISTS ix_satt ON staffAttendance(staffId, date);
+CREATE INDEX IF NOT EXISTS ix_slips ON payslips(payrunId);
 `;
 
 export type Row = Record<string, any> & { id: number };

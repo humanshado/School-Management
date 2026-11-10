@@ -4,7 +4,7 @@ import { api, qs } from '../api';
 import { Card, ErrorBox, Loading, MessagesModal, PageHead, Select, useApi, useMeta, usePerms, useToast } from '../components/ui';
 import { fmtDate, num1, pct, signed } from '../format';
 
-interface RC {
+export interface RC {
   student: { id: number; name: string; firstName: string; learnerNo: string; className: string; guardianName: string; guardianEmail: string };
   classLabel: string; classTeacher: string; term: string;
   subjects: { subject: string; mark: number | null; band: string; meaning: string; classAvg: number | null; prev: number | null }[];
@@ -12,7 +12,7 @@ interface RC {
   attendance: { present: number; taken: number; absent: number; late: number; att: number | null };
   teacherComment: string; principalComment: string; nextTermStarts: string | null; canEditTeacher: boolean; canEditPrincipal: boolean;
 }
-interface RCData { school: { name: string; address: string; contact: string; principal: string }; gradeBands: { band: string; from: number; meaning: string }[]; cards: RC[] }
+export interface RCData { school: { name: string; address: string; contact: string; principal: string }; gradeBands: { band: string; from: number; meaning: string }[]; cards: RC[] }
 
 export default function ReportCards() {
   const { meta } = useMeta();
@@ -71,7 +71,7 @@ export default function ReportCards() {
   );
 }
 
-function ReportCard({ rc, school, bands, readOnly, onSaved }: { rc: RC; school: RCData['school']; bands: RCData['gradeBands']; readOnly?: boolean; onSaved?: () => void }) {
+export function ReportCard({ rc, school, bands, readOnly, onSaved }: { rc: RC; school: RCData['school']; bands: RCData['gradeBands']; readOnly?: boolean; onSaved?: () => void }) {
   const toast = useToast();
   const [tc, setTc] = useState(rc.teacherComment);
   const [pc, setPc] = useState(rc.principalComment);

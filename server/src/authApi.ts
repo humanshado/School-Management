@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import {
-  ROLES, checkPassword, createSession, endSession, endUserSessions, findLogin, hashPassword, loginFailed, loginLocked, loginOk,
+  ROLES, PORTAL_ROLES, learnersOf, checkPassword, createSession, endSession, endUserSessions, findLogin, hashPassword, loginFailed, loginLocked, loginOk,
   publicUser, readToken, setCookie, verifyPassword, type Role, type User,
 } from './auth.ts';
 import type { Store } from './db.ts';
@@ -19,7 +19,7 @@ export function buildAuthApi(store: Store) {
   const adminCount = (exceptId = -1) => (store.db.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'admin' AND active = 1 AND id != ?").get(exceptId) as { n: number }).n;
   const startSession = (req: Request, res: Response, u: User) => { setCookie(req, res, createSession(store, u.id)); return { user: u }; };
   const as = (u: User) => ({ id: u.id, name: u.name, role: u.role });
-  const ROLE = { admin: 'Admin', teacher: 'Teacher', bursar: 'Bursar' } as Record<string, string>;
+  const ROLE = { admin: 'Admin', teacher: 'Teacher', bursar: 'Bursar', librarian: 'Librarian', parent: 'Parent', student: 'Student' } as Record<string, string>;
   const describeUser = (u: any) => `${u.name} (@${u.username}, ${ROLE[u.role] ?? u.role}${u.teacherName ? `, ${u.teacherName}` : ''})`;
 
   const validate = (b: any, isNew: boolean) => {
@@ -40,6 +40,24 @@ export function buildAuthApi(store: Store) {
     if (out.role && out.role !== 'teacher') out.teacherName = null;
     return out;
   };
+  /** Parent: one or more learners; student: exactly one. Returns null when not a portal role. */
+  const learnerLinks = (role: string, ids: unknown): number[] | null => {
+    if (!PORTAL_ROLES.includes(role as Role)) return null;
+    const list = [...new Set((Array.isArray(ids) ? ids : []).map(Number).filter((n) => Number.isInteger(n) && n > 0))];
+    for (const id of list) if (!store.db.prepare('SELECT 1 FROM students WHERE id = ?').get(id)) throw bad(`Learner #${id} does not exist`);
+    if (role === 'student' && list.length !== 1) throw bad('A student login is linked to exactly one learner');
+    if (role === 'parent' && !list.length) throw bad('Pick the learner(s) this parent can see');
+    return list;
+  };
+  const setLinks = (userId: number, ids: number[] | null) => {
+    store.db.prepare('DELETE FROM userLearners WHERE userId = ?').run(userId);
+    for (const id of ids ?? []) store.db.prepare('INSERT INTO userLearners (userId, learnerId) VALUES (?, ?)').run(userId, id);
+  };
+  const withLinks = (u: User) => ({ ...u, learnerIds: learnersOf(store, u.id) });
+  const learnerNames = (ids: number[]) => ids.map((id) => {
+    const st = store.db.prepare('SELECT firstName, lastName FROM students WHERE id = ?').get(id) as any;
+    return st ? `${st.firstName} ${st.lastName}` : `#${id}`;
+  }).join(', ');
 
   // ------------------------------------------------------------ session
   r.get('/auth/status', h((req) => ({ needsSetup: userCount() === 0, user: req.user ?? null })));
@@ -97,16 +115,18 @@ export function buildAuthApi(store: Store) {
   // ------------------------------------------------------------ users (admin only)
   r.use('/users', (req, _res, next) => next(req.perms?.admin ? undefined : new HttpError(req.user ? 403 : 401, req.user ? 'Only an admin can manage users' : 'Log in first')));
 
-  r.get('/users', h(() => (store.db.prepare('SELECT * FROM users ORDER BY role, name').all() as any[]).map(publicUser)));
+  r.get('/users', h(() => (store.db.prepare('SELECT * FROM users ORDER BY role, name').all() as any[]).map((u) => withLinks(publicUser(u)))));
 
   r.post('/users', h((req) => {
     const v = validate(req.body ?? {}, true);
     if (store.db.prepare('SELECT 1 FROM users WHERE username = ?').get(v.username)) throw bad(`The username ${v.username} is taken`);
+    const links = learnerLinks(v.role, req.body?.learnerIds);
     const id = Number(store.db.prepare('INSERT INTO users (username, name, role, teacherName, passwordHash, active, createdAt) VALUES (?, ?, ?, ?, ?, 1, ?)')
       .run(v.username, v.name, v.role, v.teacherName ?? null, v.passwordHash, new Date().toISOString()).lastInsertRowid);
+    setLinks(id, links);
     const u = publicUser(store.db.prepare('SELECT * FROM users WHERE id = ?').get(id));
-    logActivity(store, req, { category: 'users', action: 'user.create', summary: `Added user ${describeUser(u)}` });
-    return u;
+    logActivity(store, req, { category: 'users', action: 'user.create', summary: `Added user ${describeUser(u)}${links ? ` for ${learnerNames(links)}` : ''}` });
+    return withLinks(u);
   }));
 
   r.put('/users/:id', h((req) => {
@@ -115,10 +135,14 @@ export function buildAuthApi(store: Store) {
     if (!cur) throw new HttpError(404, 'User not found');
     const v = validate(req.body ?? {}, false);
     if (v.username && v.username !== cur.username && store.db.prepare('SELECT 1 FROM users WHERE username = ? AND id != ?').get(v.username, id)) throw bad(`The username ${v.username} is taken`);
+    const role = v.role ?? cur.role;
+    const oldLinks = learnersOf(store, id);
+    const links = 'learnerIds' in (req.body ?? {}) || v.role ? learnerLinks(role, req.body?.learnerIds ?? oldLinks) : PORTAL_ROLES.includes(role) ? oldLinks : null;
     const losesAdmin = cur.role === 'admin' && cur.active && ((v.role && v.role !== 'admin') || v.active === 0);
     if (losesAdmin && adminCount(id) === 0) throw bad('There must always be at least one active admin');
     const cols = Object.keys(v);
     if (cols.length) store.db.prepare(`UPDATE users SET ${cols.map((c) => `${c} = ?`).join(', ')} WHERE id = ?`).run(...cols.map((c) => v[c]), id);
+    setLinks(id, links);
     // a password reset, a new role or a deactivated account signs that person out
     if (v.passwordHash || v.role || v.active === 0) endUserSessions(store, id, id === req.user!.id ? readToken(req) ?? undefined : undefined);
     const u = publicUser(store.db.prepare('SELECT * FROM users WHERE id = ?').get(id));
@@ -127,8 +151,9 @@ export function buildAuthApi(store: Store) {
       if ((cur[k] ?? null) !== ((u as any)[k] ?? null)) what.push(`${label} ${cur[k] ?? '–'} → ${(u as any)[k] ?? '–'}`);
     if (cur.active !== u.active) what.push(u.active ? 'enabled the account' : 'disabled the account');
     if (v.passwordHash) what.push('reset the password');
+    if (JSON.stringify(oldLinks) !== JSON.stringify(links ?? [])) what.push(`learners: ${learnerNames(links ?? []) || 'none'}`);
     if (what.length) logActivity(store, req, { category: 'users', action: 'user.update', summary: `Changed user ${cur.name}: ${what.join(', ')}` });
-    return u;
+    return withLinks(u);
   }));
 
   r.delete('/users/:id', h((req) => {

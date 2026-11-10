@@ -25,6 +25,17 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
   return data as T;
 }
 
+/** Upload one file (sent as the raw body; the server checks type and size). */
+export async function uploadFile(path: string, file: File) {
+  const res = await fetch(`/api${path}`, {
+    method: 'POST', credentials: 'same-origin', body: file,
+    headers: { 'X-Requested-With': 'fetch', 'X-Filename': encodeURIComponent(file.name), 'Content-Type': 'application/octet-stream' },
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new ApiError(data?.error ?? `Upload failed (${res.status})`, res.status);
+  return data;
+}
+
 export const api = {
   get: <T = any>(path: string) => call<T>('GET', path),
   post: <T = any>(path: string, body?: unknown) => call<T>('POST', path, body ?? {}),

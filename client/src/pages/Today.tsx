@@ -4,6 +4,7 @@ import Register from '../components/Register';
 import { BarChart, Card, Empty, ErrorBox, Flags, Kpi, Loading, MessagesModal, PageHead, Select, useApi, useMeta, usePerms } from '../components/ui';
 import { daysBetween, fmtLong, fmtShort, money, pct, signed } from '../format';
 import type { ClassStats, Kpis, StudentStats } from '../types';
+import { NoticeItem, type Notice } from './Notices';
 
 type Learner = StudentStats & { guardianName: string; guardianPhone: string; guardianEmail: string };
 interface TodayData {
@@ -18,6 +19,7 @@ export default function Today() {
   const s = meta.settings;
   const perms = usePerms();
   const { data, error, reload } = useApi<TodayData>('/today');
+  const { data: notices } = useApi<{ items: Notice[] }>('/announcements');
   const [cls, setCls] = useState(() => localStorage.getItem('today.class') ?? '');
   const [mail, setMail] = useState<Learner | null>(null);
   const [showWatch, setShowWatch] = useState(false);
@@ -95,6 +97,12 @@ export default function Today() {
           )}
           <p className="muted small pad-x">Flags: attendance under {pct(s.riskAttendance)} · average down {s.riskDrop}+ points on last term{s.useFees ? ' · fees overdue' : ''}.</p>
         </Card>
+
+        {!!notices?.items.length && (
+          <Card title="Notice board" actions={<Link className="btn sm" to="/notices">All notices</Link>}>
+            <div className="notices compact">{notices.items.slice(0, 3).map((n) => <NoticeItem key={n.id} n={n} />)}</div>
+          </Card>
+        )}
 
         <Card title="Coming up">
           {data.upcoming.length === 0 ? <Empty>Nothing in the next 45 days.</Empty> : (

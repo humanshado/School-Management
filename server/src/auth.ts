@@ -14,20 +14,33 @@ import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypt
 import type { NextFunction, Request, Response } from 'express';
 import type { Store } from './db.ts';
 
-export type Role = 'admin' | 'teacher' | 'bursar';
-export const ROLES: Role[] = ['admin', 'teacher', 'bursar'];
+export type Role = 'admin' | 'teacher' | 'bursar' | 'librarian' | 'parent' | 'student';
+export const ROLES: Role[] = ['admin', 'teacher', 'bursar', 'librarian', 'parent', 'student'];
+/** Parents and students only see the portal, for the learners linked to their login. */
+export const PORTAL_ROLES: Role[] = ['parent', 'student'];
 
 export interface User { id: number; username: string; name: string; role: Role; teacherName: string | null; active: number }
 
 export interface Perms {
   role: Role;
   admin: boolean;
-  /** take registers / enter marks / teacher comments */
+  /** a member of staff (every role but parent and student) */
+  staff: boolean;
+  /** take registers / enter marks / teacher comments / homework */
   teach: boolean;
   /** see and record fees */
   fees: boolean;
+  library: boolean;
+  transport: boolean;
+  /** staff records, staff attendance, leave and payroll */
+  hr: boolean;
+  admissions: boolean;
+  /** parent / student portal */
+  portal: boolean;
   /** classes a teacher may work on; null = every class */
   classes: string[] | null;
+  /** learners a parent / student login may see */
+  learners: number[];
 }
 
 declare global {
@@ -44,6 +57,9 @@ export function initAuth(store: Store) {
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY, username TEXT NOT NULL UNIQUE COLLATE NOCASE, name TEXT NOT NULL, role TEXT NOT NULL,
       teacherName TEXT, passwordHash TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, createdAt TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS userLearners (
+      userId INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, learnerId INTEGER NOT NULL, PRIMARY KEY (userId, learnerId)
     );
     CREATE TABLE IF NOT EXISTS sessions (
       tokenHash TEXT PRIMARY KEY, userId INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, expires INTEGER NOT NULL
@@ -102,7 +118,14 @@ export function permsFor(store: Store, u: User): Perms {
   if (u.role === 'teacher' && u.teacherName) {
     classes = (store.db.prepare('SELECT name FROM classes WHERE teacher = ? ORDER BY name').all(u.teacherName) as { name: string }[]).map((c) => c.name);
   }
-  return { role: u.role, admin: u.role === 'admin', teach: u.role !== 'bursar', fees: u.role !== 'teacher', classes: u.role === 'admin' ? null : classes };
+  const r = u.role, admin = r === 'admin', portal = PORTAL_ROLES.includes(r);
+  return {
+    role: r, admin, staff: !portal, portal,
+    teach: admin || r === 'teacher', fees: admin || r === 'bursar', library: admin || r === 'librarian',
+    transport: admin, hr: admin || r === 'bursar', admissions: admin,
+    classes: admin ? null : classes,
+    learners: portal ? learnersOf(store, u.id) : [],
+  };
 }
 
 /** Attach req.user / req.perms from the session cookie (sliding expiry). */
@@ -161,3 +184,6 @@ export function findLogin(store: Store, username: string, password: string): Use
 }
 
 export const publicUser = (u: any): User => ({ id: u.id, username: u.username, name: u.name, role: u.role, teacherName: u.teacherName ?? null, active: u.active });
+
+export const learnersOf = (store: Store, userId: number) =>
+  (store.db.prepare('SELECT learnerId FROM userLearners WHERE userId = ? ORDER BY learnerId').all(userId) as { learnerId: number }[]).map((r) => r.learnerId);

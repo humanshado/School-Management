@@ -7,13 +7,18 @@ import { Card, Empty, ErrorBox, Field, Loading, Modal, Select, useAction, useApi
 const ROLE_HELP: Record<Role, string> = {
   admin: 'Everything, including settings, users and backups.',
   teacher: 'Registers, gradebook and report-card comments for their own class. Sees learners, but no fees.',
-  bursar: 'Fees, receipts, payment plans and fee reminders. Sees learners; no registers or marks.',
+  bursar: 'Fees, receipts, payment plans, fee reminders and payroll. Sees learners; no registers or marks.',
+  librarian: 'The library: books, loans and returns. Sees learners and classes.',
+  parent: 'The family portal only: grades, report cards, attendance, homework, notices and fees of their own children.',
+  student: 'The portal only, for their own record: grades, report cards, attendance, homework and notices.',
 };
 
-type Draft = Partial<User> & { password?: string };
+type Draft = Partial<User> & { password?: string; learnerIds?: number[] };
 
 export default function UsersCard() {
   const { meta } = useMeta();
+  const { data: learners } = useApi<{ id: number; firstName: string; lastName: string; className: string }[]>('/students');
+  const nameOf = (id: number) => { const l = learners?.find((x) => x.id === id); return l ? `${l.firstName} ${l.lastName} (${l.className})` : `#${id}`; };
   const { data, error, reload } = useApi<User[]>('/users');
   const [edit, setEdit] = useState<Draft | null>(null);
   return (
@@ -22,14 +27,15 @@ export default function UsersCard() {
       {!data ? <Loading /> : !data.length ? <Empty>No users.</Empty> : (
         <div className="table-wrap">
           <table className="table compact hover">
-            <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Class teacher of</th><th>Status</th></tr></thead>
+            <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Class / learners</th><th>Status</th></tr></thead>
             <tbody>
               {data.map((u) => (
                 <tr key={u.id} onClick={() => setEdit({ ...u, password: '' })}>
                   <td><b>{u.name}</b>{u.id === meta.user.id && <span className="muted small"> (you)</span>}</td>
                   <td className="muted">{u.username}</td>
                   <td><span className={`pill role-${u.role}`}>{ROLE_LABEL[u.role]}</span></td>
-                  <td>{u.role !== 'teacher' ? <span className="muted">–</span> : u.teacherName ? `${u.teacherName}` : <span className="muted">every class (not linked)</span>}</td>
+                  <td>{u.role === 'teacher' ? (u.teacherName ? `${u.teacherName}` : <span className="muted">every class (not linked)</span>)
+                    : (u as any).learnerIds?.length ? (u as any).learnerIds.map(nameOf).join(', ') : <span className="muted">–</span>}</td>
                   <td>{u.active ? <span className="pill ok">Active</span> : <span className="pill">Disabled</span>}</td>
                 </tr>
               ))}
@@ -43,7 +49,7 @@ export default function UsersCard() {
   );
 }
 
-function UserModal({ u, onClose, onSaved }: { u: Draft; onClose: () => void; onSaved: () => void }) {
+export function UserModal({ u, onClose, onSaved }: { u: Draft; onClose: () => void; onSaved: () => void }) {
   const { meta } = useMeta();
   const [f, setF] = useState<Draft>(u);
   const { busy, run } = useAction();
@@ -51,6 +57,7 @@ function UserModal({ u, onClose, onSaved }: { u: Draft; onClose: () => void; onS
   const isNew = !f.id;
   const save = async () => {
     const body: any = { username: f.username, name: f.name, role: f.role, teacherName: f.role === 'teacher' ? f.teacherName ?? '' : '', active: !!f.active || isNew };
+    if (f.role === 'parent' || f.role === 'student') body.learnerIds = f.learnerIds ?? [];
     if (f.password) body.password = f.password;
     if (await run(() => (isNew ? api.post('/users', body) : api.put(`/users/${f.id}`, body)), isNew ? `${f.name} can now log in` : 'User saved')) onSaved();
   };
@@ -76,6 +83,11 @@ function UserModal({ u, onClose, onSaved }: { u: Draft; onClose: () => void; onS
             <Select value={f.teacherName ?? ''} onChange={(v) => set({ teacherName: v })} options={meta.teachers} placeholder="Not linked (every class)" />
           </Field>
         )}
+        {(f.role === 'parent' || f.role === 'student') && (
+          <Field label={f.role === 'parent' ? 'Their children *' : 'Which learner *'} wide>
+            <LearnerPicker value={f.learnerIds ?? []} single={f.role === 'student'} onChange={(ids) => set({ learnerIds: ids })} />
+          </Field>
+        )}
         <Field label={isNew ? 'Password *' : 'New password'} hint={isNew ? 'At least 8 characters. Tell them to change it after logging in.' : 'Leave empty to keep the current one. Setting one logs them out everywhere.'}>
           <input type="password" autoComplete="new-password" value={f.password ?? ''} onChange={(e) => set({ password: e.target.value })} />
         </Field>
@@ -87,5 +99,25 @@ function UserModal({ u, onClose, onSaved }: { u: Draft; onClose: () => void; onS
         <button type="submit" hidden />
       </form>
     </Modal>
+  );
+}
+
+/** Search learners by name, learner no or guardian, and pick one (student) or several (parent). */
+export function LearnerPicker({ value, onChange, single }: { value: number[]; onChange: (ids: number[]) => void; single?: boolean }) {
+  const { data } = useApi<{ id: number; firstName: string; lastName: string; className: string; learnerNo: string; guardianName: string }[]>('/students');
+  const [q, setQ] = useState('');
+  const t = q.trim().toLowerCase();
+  const hits = t.length < 2 ? [] : (data ?? []).filter((l) => !value.includes(l.id) && [`${l.firstName} ${l.lastName}`, l.learnerNo, l.guardianName].some((v) => v?.toLowerCase().includes(t))).slice(0, 8);
+  const pick = (id: number) => { onChange(single ? [id] : [...value, id]); setQ(''); };
+  return (
+    <div className="picker">
+      <div className="picker-chips">
+        {value.map((id) => { const l = data?.find((x) => x.id === id); return (
+          <span key={id} className="pill info">{l ? `${l.firstName} ${l.lastName} · ${l.className}` : `#${id}`} <button type="button" className="icon-btn" aria-label="Remove" onClick={() => onChange(value.filter((x) => x !== id))}>×</button></span>
+        ); })}
+      </div>
+      {(!single || !value.length) && <input placeholder="Type a learner's or guardian's name…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Find a learner" />}
+      {hits.length > 0 && <ul className="picker-list">{hits.map((l) => <li key={l.id}><button type="button" onClick={() => pick(l.id)}>{l.firstName} {l.lastName} <span className="muted">· {l.className} · guardian {l.guardianName || '–'}</span></button></li>)}</ul>}
+    </div>
   );
 }

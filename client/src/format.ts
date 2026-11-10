@@ -1,6 +1,7 @@
 import type { Settings } from './types';
 
-export const money = (s: Settings | undefined, x: number | null | undefined) => {
+export type MoneySettings = Pick<Settings, 'currencySymbol' | 'currencyDecimals'>;
+export const money = (s: MoneySettings | undefined, x: number | null | undefined) => {
   if (x === null || x === undefined) return '–';
   const d = s?.currencyDecimals ?? 0;
   const v = Math.abs(x).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -25,4 +26,5 @@ export const bandOf = (s: Settings | undefined, mark: number | null | undefined)
 };
 export const plural = (n: number, word: string, many = word + 's') => `${n} ${n === 1 ? word : many}`;
 
-export const ROLE_LABEL = { admin: 'Admin', teacher: 'Teacher', bursar: 'Bursar' } as const;
+export const ROLE_LABEL = { admin: 'Admin', teacher: 'Teacher', bursar: 'Bursar', librarian: 'Librarian', parent: 'Parent', student: 'Student' } as const;
+export const fileSize = (n: number) => (n < 1024 ? `${n} B` : n < 1048576 ? `${Math.round(n / 1024)} KB` : `${(n / 1048576).toFixed(1)} MB`);

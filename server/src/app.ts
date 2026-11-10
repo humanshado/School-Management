@@ -4,6 +4,9 @@ import { resolve } from 'node:path';
 import { buildApi, HttpError } from './api.ts';
 import { authenticate, initAuth, sameOriginOnly } from './auth.ts';
 import { initActivity } from './activity.ts';
+import { buildFilesApi } from './files.ts';
+import { buildLearningApi } from './learning.ts';
+import { buildPortalApi } from './portal.ts';
 import { buildAuthApi } from './authApi.ts';
 import type { Store } from './db.ts';
 
@@ -18,6 +21,11 @@ export function createApp(store: Store, clientDist?: string) {
   app.use('/api', buildAuthApi(store));
   // everything else needs a login
   app.use('/api', (req, _res, next) => next(req.user ? undefined : new HttpError(401, 'Please log in')));
+  app.use('/api', buildFilesApi(store)); // own checks per kind of file (families may open homework files)
+  app.use('/api/portal', buildPortalApi(store));
+  // parents and students stop here: everything below is for staff
+  app.use('/api', (req, _res, next) => next(req.perms?.staff ? undefined : new HttpError(403, 'This part of the app is for school staff')));
+  app.use('/api', buildLearningApi(store));
   app.use('/api', buildApi(store));
   app.use('/api', (_req, _res, next) => next(new HttpError(404, 'No such API route')));
   if (clientDist && existsSync(clientDist)) {

@@ -6,6 +6,8 @@ import {
   type Calc, type StudentStats,
 } from './engine.ts';
 import type { Settings } from './types.ts';
+import { buildReportCard } from './reports.ts';
+import { deleteFilesOf } from './files.ts';
 import { activityCsv, activityUsers, CATEGORIES, describeDiff, diff, logActivity, queryActivity, type Category, type Entry } from './activity.ts';
 
 export class HttpError extends Error {
@@ -219,7 +221,10 @@ export function buildApi(store: Store) {
       for (const [t, col] of [['attendance', 'learnerId'], ['marks', 'learnerId'], ['comments', 'learnerId'], ['payments', 'studentId'], ['paymentPlans', 'studentId']])
         store.db.prepare(`DELETE FROM ${t} WHERE ${col} = ?`).run(id);
       store.db.prepare('DELETE FROM students WHERE id = ?').run(id);
+      store.db.prepare('DELETE FROM userLearners WHERE learnerId = ?').run(id);
+      store.db.prepare('DELETE FROM riders WHERE learnerId = ?').run(id);
     });
+    deleteFilesOf(store, 'student', id);
     log(req, 'students', 'student.delete',
       `Deleted learner ${fullName(cur)} (${cur.className}) with ${counts.attendance} attendance marks, ${counts.marks} marks and ${counts.payments} payments`,
       { learnerId: id, details: { learner: cur, payments, counts } });
@@ -545,35 +550,7 @@ export function buildApi(store: Store) {
   }));
 
   // ------------------------------------------------------------ report cards
-  const reportCard = (st: Row, term: string, c: Calc) => {
-    const s = S();
-    const x = c.byId.get(st.id)!;
-    const mates = c.students.filter((y) => y.active && y.className === st.className);
-    const prev = termInfo(s, term).prev;
-    const prevMarks = prev ? termMarks(store, s, prev).get(st.id) ?? {} : {};
-    const cm = store.all('comments', 'WHERE learnerId = ? AND term = ?', st.id, term)[0];
-    const cls = store.all('classes', 'WHERE name = ?', st.className)[0];
-    const terms = s.terms ?? [];
-    const nextTerm = terms[terms.findIndex((t) => t.name === term) + 1];
-    return {
-      student: { id: st.id, name: fullName(st), firstName: st.firstName, learnerNo: st.learnerNo, className: st.className, guardianName: st.guardianName, guardianEmail: st.guardianEmail },
-      classLabel: cls ? (cls.grade ? `${cls.grade}${cls.stream ?? ''}` : cls.name) : st.className,
-      classTeacher: cls?.teacher ?? '', term,
-      subjects: s.subjects.map((subj) => {
-        const v = mates.map((y) => y.marks[subj]).filter((m) => m !== undefined);
-        const mark = x.marks[subj] ?? null;
-        return {
-          subject: subj, mark, band: mark !== null ? band(s, mark)?.band ?? '' : '', meaning: mark !== null ? band(s, mark)?.meaning ?? '' : '',
-          classAvg: v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null, prev: prevMarks[subj] ?? null,
-        };
-      }),
-      avg: x.avg, band: x.avg !== null ? band(s, x.avg)?.band ?? '' : '', chg: x.chg, pos: x.pos,
-      classSize: mates.filter((y) => y.avg !== null).length,
-      attendance: { present: x.present, taken: x.taken, absent: x.absent, late: x.late, att: x.att },
-      teacherComment: cm?.teacherComment ?? '', principalComment: cm?.principalComment ?? '',
-      nextTermStarts: nextTerm?.start ?? null,
-    };
-  };
+  const reportCard = (st: Row, term: string, c: Calc) => buildReportCard(store, st, term, c);
   api.get('/report-cards', h((req) => {
     need(req, 'teach');
     const s = S();
