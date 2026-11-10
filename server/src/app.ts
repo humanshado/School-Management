@@ -10,6 +10,7 @@ import { buildPortalApi } from './portal.ts';
 import { buildScheduleApi } from './schedule.ts';
 import { buildAdmissionsApi, buildPublicApi } from './admissions.ts';
 import { buildResourcesApi } from './resources.ts';
+import { buildHrApi } from './hr.ts';
 import { buildAuthApi } from './authApi.ts';
 import type { Store } from './db.ts';
 
@@ -33,6 +34,7 @@ export function createApp(store: Store, clientDist?: string) {
   app.use('/api', buildScheduleApi(store));
   app.use('/api', buildAdmissionsApi(store));
   app.use('/api', buildResourcesApi(store));
+  app.use('/api', buildHrApi(store));
   app.use('/api', buildApi(store));
   app.use('/api', (_req, _res, next) => next(new HttpError(404, 'No such API route')));
   if (clientDist && existsSync(clientDist)) {

@@ -13,6 +13,7 @@ import Admissions from './pages/Admissions';
 import Apply from './pages/Apply';
 import Library from './pages/Library';
 import Transport from './pages/Transport';
+import Hr from './pages/Hr';
 import Today from './pages/Today';
 import Students from './pages/Students';
 import Classes from './pages/Classes';
@@ -28,7 +29,7 @@ import Admin from './pages/Admin';
 import Activity from './pages/Activity';
 
 type NavItem = { to: string; label: string; icon: string; status: (m: Meta) => string; alert?: (m: Meta) => boolean; allow?: (p: Perms) => boolean };
-const teach = (p: Perms) => p.teach, fees = (p: Perms) => p.fees, admin = (p: Perms) => p.admin, admissions = (p: Perms) => p.admissions, library = (p: Perms) => p.library, transport = (p: Perms) => p.transport;
+const teach = (p: Perms) => p.teach, fees = (p: Perms) => p.fees, admin = (p: Perms) => p.admin, admissions = (p: Perms) => p.admissions, library = (p: Perms) => p.library, transport = (p: Perms) => p.transport, hr = (p: Perms) => p.hr;
 
 const NAV: { group: string; items: NavItem[] }[] = [
   { group: 'Daily', items: [
@@ -51,6 +52,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
   ] },
   { group: 'Resources', items: [
     { to: '/library', label: 'Library', icon: '📚', allow: library, status: () => 'books · loans' },
+    { to: '/staff', label: 'Staff & payroll', icon: '👥', allow: hr, status: () => 'staff · leave · payroll' },
     { to: '/transport', label: 'Transport', icon: '🚌', allow: transport, status: () => 'routes · riders · trips' },
   ] },
   { group: 'School', items: [
@@ -161,6 +163,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
               <Route path="/admissions" element={guard(p.admissions, <Admissions />)} />
               <Route path="/library" element={guard(p.library, <Library />)} />
               <Route path="/transport" element={guard(p.transport, <Transport />)} />
+              <Route path="/staff" element={guard(p.hr, <Hr />)} />
               <Route path="*" element={<Navigate to="/today" replace />} />
             </Routes>
           </main>
