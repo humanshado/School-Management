@@ -17,6 +17,7 @@ import Dashboard from './pages/Dashboard';
 import Calendar from './pages/Calendar';
 import Communications from './pages/Communications';
 import Admin from './pages/Admin';
+import Activity from './pages/Activity';
 
 type NavItem = { to: string; label: string; icon: string; status: (m: Meta) => string; alert?: (m: Meta) => boolean; allow?: (p: Perms) => boolean };
 const teach = (p: Perms) => p.teach, fees = (p: Perms) => p.fees, admin = (p: Perms) => p.admin;
@@ -40,6 +41,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
   { group: 'School', items: [
     { to: '/calendar', label: 'School Calendar', icon: '▥', status: () => 'terms · holidays · key dates' },
     { to: '/communications', label: 'Communications', icon: '✉', allow: admin, status: () => 'e-mail templates' },
+    { to: '/activity', label: 'Activity', icon: '◷', allow: admin, status: () => 'who changed what' },
     { to: '/admin', label: 'Admin', icon: '⚙', allow: admin, status: () => 'grading, fees, currency' },
   ] },
 ];
@@ -128,6 +130,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
               <Route path="/calendar" element={<Calendar />} />
               <Route path="/communications" element={guard(p.admin, <Communications />)} />
               <Route path="/admin" element={guard(p.admin, <Admin />)} />
+              <Route path="/activity" element={guard(p.admin, <Activity />)} />
               <Route path="*" element={<Navigate to="/today" replace />} />
             </Routes>
           </main>

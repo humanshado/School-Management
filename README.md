@@ -111,6 +111,18 @@ The first time the app opens, it asks you to create the **admin** account. The a
 
 **On a network:** logins protect the data, but traffic is plain HTTP. Put it behind HTTPS (a reverse proxy such as Caddy or nginx) before using it beyond one trusted local network.
 
+## Activity log
+
+**Admin › Activity** shows every change made in the app: who did it (with their role), when, and what changed.
+
+- **What's recorded:** registers (only the marks that changed), marks (old → new), assessments, report-card comments, learners, classes, teachers, payments, payment plans, settings, users, backups and data resets. Logins, logouts, failed logins and lockouts are recorded too.
+- **What each entry keeps:** a plain-English summary, plus details showing each changed field before → after. Anything deleted (a payment, a learner, an assessment and its marks) is kept in full in the entry, so it can be put back by hand.
+- **Never recorded:** passwords.
+- **Finding entries:** filter by person, area, dates or text, and download what's shown as CSV for Excel. Each learner's profile also has a **History** tab.
+- **Who can see it:** admins only.
+- **Tamper-resistant from the app:** entries can't be edited or deleted. "Clear all school data", "Load sample data" and "Restore backup" don't touch the log; they're recorded in it.
+- **Not protected from the database file:** someone with direct access to `server/data/school.db` could still change it, so keep that file somewhere only the admin can reach.
+
 ## Code layout
 
 ```

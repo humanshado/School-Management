@@ -3,11 +3,13 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { buildApi, HttpError } from './api.ts';
 import { authenticate, initAuth, sameOriginOnly } from './auth.ts';
+import { initActivity } from './activity.ts';
 import { buildAuthApi } from './authApi.ts';
 import type { Store } from './db.ts';
 
 export function createApp(store: Store, clientDist?: string) {
   initAuth(store);
+  initActivity(store);
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '25mb' }));

@@ -5,6 +5,7 @@ import {
 } from './auth.ts';
 import type { Store } from './db.ts';
 import { HttpError } from './api.ts';
+import { logActivity } from './activity.ts';
 
 const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
 const bad = (m: string) => new HttpError(400, m);
@@ -17,6 +18,9 @@ export function buildAuthApi(store: Store) {
   const userCount = () => (store.db.prepare('SELECT COUNT(*) AS n FROM users').get() as { n: number }).n;
   const adminCount = (exceptId = -1) => (store.db.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'admin' AND active = 1 AND id != ?").get(exceptId) as { n: number }).n;
   const startSession = (req: Request, res: Response, u: User) => { setCookie(req, res, createSession(store, u.id)); return { user: u }; };
+  const as = (u: User) => ({ id: u.id, name: u.name, role: u.role });
+  const ROLE = { admin: 'Admin', teacher: 'Teacher', bursar: 'Bursar' } as Record<string, string>;
+  const describeUser = (u: any) => `${u.name} (@${u.username}, ${ROLE[u.role] ?? u.role}${u.teacherName ? `, ${u.teacherName}` : ''})`;
 
   const validate = (b: any, isNew: boolean) => {
     const out: Record<string, any> = {};
@@ -46,23 +50,36 @@ export function buildAuthApi(store: Store) {
     const v = validate({ ...req.body, role: 'admin' }, true);
     const id = Number(store.db.prepare('INSERT INTO users (username, name, role, passwordHash, active, createdAt) VALUES (?, ?, ?, ?, 1, ?)')
       .run(v.username, v.name, 'admin', v.passwordHash, new Date().toISOString()).lastInsertRowid);
-    return startSession(req, res, publicUser(store.db.prepare('SELECT * FROM users WHERE id = ?').get(id)));
+    const u = publicUser(store.db.prepare('SELECT * FROM users WHERE id = ?').get(id));
+    logActivity(store, req, { category: 'users', action: 'setup', summary: `Set up the app: created the first admin account ${describeUser(u)}` }, as(u));
+    return startSession(req, res, u);
   }));
 
   r.post('/auth/login', h((req, res) => {
     const username = str(req.body?.username).toLowerCase();
     const key = `${username}|${req.ip}`;
     const wait = loginLocked(key);
-    if (wait) throw new HttpError(429, `Too many wrong passwords. Try again in ${wait} minute${wait === 1 ? '' : 's'}.`);
+    if (wait) {
+      logActivity(store, req, { category: 'auth', action: 'login.locked', summary: `Login refused for "${username}": locked after too many wrong passwords` }, { id: null, name: username || '(blank)' });
+      throw new HttpError(429, `Too many wrong passwords. Try again in ${wait} minute${wait === 1 ? '' : 's'}.`);
+    }
     const u = findLogin(store, username, String(req.body?.password ?? ''));
-    if (!u) { loginFailed(key); throw new HttpError(401, 'Wrong username or password'); }
+    if (!u) {
+      loginFailed(key);
+      const known = store.db.prepare('SELECT id, name, role FROM users WHERE username = ?').get(username) as any;
+      logActivity(store, req, { category: 'auth', action: 'login.failed', summary: known ? `Failed login for @${username}: wrong password` : `Failed login: no user called "${username.slice(0, 40)}"` },
+        known ? { id: known.id, name: known.name, role: known.role } : { id: null, name: username.slice(0, 40) || '(blank)' });
+      throw new HttpError(401, 'Wrong username or password');
+    }
     loginOk(key);
+    logActivity(store, req, { category: 'auth', action: 'login', summary: `Logged in` }, as(u));
     return startSession(req, res, publicUser(u));
   }));
 
   r.post('/auth/logout', h((req, res) => {
     const t = readToken(req);
     if (t) endSession(store, t);
+    if (req.user) logActivity(store, req, { category: 'auth', action: 'logout', summary: 'Logged out' });
     setCookie(req, res, null);
   }));
 
@@ -74,6 +91,7 @@ export function buildAuthApi(store: Store) {
     if (e) throw bad(e);
     store.db.prepare('UPDATE users SET passwordHash = ? WHERE id = ?').run(hashPassword(req.body.password), req.user.id);
     endUserSessions(store, req.user.id, readToken(req) ?? undefined); // sign out everywhere else
+    logActivity(store, req, { category: 'auth', action: 'password.change', summary: 'Changed their own password' });
   }));
 
   // ------------------------------------------------------------ users (admin only)
@@ -86,7 +104,9 @@ export function buildAuthApi(store: Store) {
     if (store.db.prepare('SELECT 1 FROM users WHERE username = ?').get(v.username)) throw bad(`The username ${v.username} is taken`);
     const id = Number(store.db.prepare('INSERT INTO users (username, name, role, teacherName, passwordHash, active, createdAt) VALUES (?, ?, ?, ?, ?, 1, ?)')
       .run(v.username, v.name, v.role, v.teacherName ?? null, v.passwordHash, new Date().toISOString()).lastInsertRowid);
-    return publicUser(store.db.prepare('SELECT * FROM users WHERE id = ?').get(id));
+    const u = publicUser(store.db.prepare('SELECT * FROM users WHERE id = ?').get(id));
+    logActivity(store, req, { category: 'users', action: 'user.create', summary: `Added user ${describeUser(u)}` });
+    return u;
   }));
 
   r.put('/users/:id', h((req) => {
@@ -101,7 +121,14 @@ export function buildAuthApi(store: Store) {
     if (cols.length) store.db.prepare(`UPDATE users SET ${cols.map((c) => `${c} = ?`).join(', ')} WHERE id = ?`).run(...cols.map((c) => v[c]), id);
     // a password reset, a new role or a deactivated account signs that person out
     if (v.passwordHash || v.role || v.active === 0) endUserSessions(store, id, id === req.user!.id ? readToken(req) ?? undefined : undefined);
-    return publicUser(store.db.prepare('SELECT * FROM users WHERE id = ?').get(id));
+    const u = publicUser(store.db.prepare('SELECT * FROM users WHERE id = ?').get(id));
+    const what: string[] = [];
+    for (const [k, label] of [['username', 'username'], ['name', 'name'], ['role', 'role'], ['teacherName', 'linked teacher']] as const)
+      if ((cur[k] ?? null) !== ((u as any)[k] ?? null)) what.push(`${label} ${cur[k] ?? '–'} → ${(u as any)[k] ?? '–'}`);
+    if (cur.active !== u.active) what.push(u.active ? 'enabled the account' : 'disabled the account');
+    if (v.passwordHash) what.push('reset the password');
+    if (what.length) logActivity(store, req, { category: 'users', action: 'user.update', summary: `Changed user ${cur.name}: ${what.join(', ')}` });
+    return u;
   }));
 
   r.delete('/users/:id', h((req) => {
@@ -112,6 +139,7 @@ export function buildAuthApi(store: Store) {
     if (cur.role === 'admin' && cur.active && adminCount(id) === 0) throw bad('There must always be at least one active admin');
     store.db.prepare('DELETE FROM sessions WHERE userId = ?').run(id);
     store.db.prepare('DELETE FROM users WHERE id = ?').run(id);
+    logActivity(store, req, { category: 'users', action: 'user.delete', summary: `Deleted user ${describeUser(cur)}` });
   }));
 
   return r;

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { PaymentModal, PlanModal, ReceiptModal } from '../components/Payments';
+import ActivityList from '../components/ActivityList';
 import { BarChart, Card, Empty, ErrorBox, Field, Flags, Loading, MessagesModal, PageHead, Select, useAction, useApi, useMeta, usePerms } from '../components/ui';
 import { fmtDate, fmtShort, markClass, money, num1, pct, signed } from '../format';
 import type { Student, StudentStats } from '../types';
@@ -139,14 +140,14 @@ function Profile({ id, onChanged, onDeleted }: { id: number; onChanged: () => vo
   const s = meta.settings;
   const perms = usePerms();
   const { data, error, reload } = useApi<ProfileData>(`/students/${id}`);
-  const [tabPick, setTab] = useState<'glance' | 'details' | 'attendance' | 'fees'>(() => { try { return (localStorage.getItem('student.tab') as any) || 'glance'; } catch { return 'glance'; } });
+  const [tabPick, setTab] = useState<'glance' | 'details' | 'attendance' | 'fees' | 'history'>(() => { try { return (localStorage.getItem('student.tab') as any) || 'glance'; } catch { return 'glance'; } });
   const [editing, setEditing] = useState(false);
   const [pay, setPay] = useState<any>(null);
   const [plan, setPlan] = useState<any>(null);
   const [receipt, setReceipt] = useState<number | null>(null);
   const [mail, setMail] = useState(false);
   const { run } = useAction();
-  const tab = tabPick === 'fees' && !perms.showFees ? 'glance' : tabPick;
+  const tab = (tabPick === 'fees' && !perms.showFees) || (tabPick === 'history' && !perms.admin) ? 'glance' : tabPick;
   useEffect(() => { try { localStorage.setItem('student.tab', tabPick); } catch { /* ignore */ } }, [tabPick]);
 
   if (error) return <ErrorBox error={error} retry={reload} />;
@@ -186,7 +187,7 @@ function Profile({ id, onChanged, onDeleted }: { id: number; onChanged: () => vo
       </Card>
 
       <div className="tabs" role="tablist">
-        {([['glance', 'Term at a glance'], ['details', 'Details'], ['attendance', 'Attendance'], ...(perms.showFees ? [['fees', 'Fees']] : [])] as [typeof tab, string][]).map(([k, l]) => (
+        {([['glance', 'Term at a glance'], ['details', 'Details'], ['attendance', 'Attendance'], ...(perms.showFees ? [['fees', 'Fees']] : []), ...(perms.admin ? [['history', 'History']] : [])] as [typeof tab, string][]).map(([k, l]) => (
           <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>
         ))}
       </div>
@@ -241,6 +242,12 @@ function Profile({ id, onChanged, onDeleted }: { id: number; onChanged: () => vo
               <tbody>{data.absences.map((a) => <tr key={a.id}><td>{fmtDate(a.date)}</td><td><span className={`dot ${markClass(a.mark)}`}>{a.mark}</span></td><td>{a.note || <span className="muted">–</span>}</td></tr>)}</tbody>
             </table>
           )}
+        </Card>
+      )}
+
+      {tab === 'history' && perms.admin && (
+        <Card title="History · changes to this learner" pad={false}>
+          <ActivityList filter={{ learnerId: String(st.id) }} compact />
         </Card>
       )}
 
